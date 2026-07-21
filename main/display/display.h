@@ -49,10 +49,12 @@ public:
     virtual void SetEmojiCollection(std::shared_ptr<EmojiCollection>) {}
     virtual void SetupUI() { setup_ui_called_ = true; }
 
-    // Dog pet emotion hooks (used by boards with a custom eye animation, e.g. the pet dog OLED)
-    virtual void StartIdleEmotion() {}
-    virtual void StopIdleEmotion() {}
-    virtual void ShowIdleRestEmotion() {}
+    // Dog pet screen hooks (used by boards with a custom "face" UI, e.g. the pet dog OLED).
+    // Exactly one of these three is active at a time, driven externally by DogController
+    // based on device conversation state + idle duration.
+    virtual void ShowDogFace() {}          // 正常对话时的默认页面：睁眼的小狗表情
+    virtual void ShowDogSleepFace() {}     // 刚进入待机时：呼呼大睡的小狗表情
+    virtual void ShowLockScreen() {}       // 待机超过一定时长后：时间/日期锁屏页面
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }

@@ -10,7 +10,7 @@
     "ESP_ROM_ELF_DIR": "D:\\esp\\Espressif\\tools\\esp-rom-elfs\\20241011\\"
   },
   "idf.gitPathWin": "D:\\esp\\Espressif\\tools\\idf-git\\2.44.0\\cmd\\git.exe",
-  "idf.currentSetup": "D:/esp/Espressif/frameworks/esp-idf-v5.5.4/",
+  "idf.currentSetup": "D:\\esp\\Espressif\\frameworks\\esp-idf-v5.5.4",
   "idf.flashType": "UART",
   "idf.portWin": "COM5",
   "clangd.path": "D:\\esp\\Espressif\\tools\\esp-clang\\16.0.1-fe4f10a809\\esp-clang\\bin\\clangd.exe",

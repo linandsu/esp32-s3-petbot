@@ -87,7 +87,8 @@ enum ActionState {
     kActionStateTurnLeft,
     kActionStateTurnRight,
     kActionStateWave,
-    kActionStateStop
+    kActionStateStop,
+    kActionStateGoIdle     // 刚进入待机：先伸懒腰/挠痒，再趴下睡觉（比直接 kActionStateSleep 多了个过渡动作）
 };
 
 class PetDog

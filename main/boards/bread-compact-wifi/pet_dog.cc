@@ -156,8 +156,8 @@ void PetDog::ActionIdleTask()
 
 void PetDog::idle_activate(int rand_action)
 {
-    auto display = Board::GetInstance().GetDisplay();
-    display->StartIdleEmotion();
+    // 屏幕表情现在完全由 DogController 根据设备状态/待机时长独立驱动，
+    // 这里只负责小狗身体的物理动作（伸懒腰/挠痒之后趴下睡觉）。
     if(rand_action == 0)
     {
         stretch();
@@ -170,7 +170,6 @@ void PetDog::idle_activate(int rand_action)
     }
     vTaskDelay(3000 / portTICK_PERIOD_MS);
     petsleep();
-    display->ShowIdleRestEmotion();
 }
 
 void PetDog::stand()
@@ -484,6 +483,11 @@ void PetDog::Action(int action)
         case kActionStateSleep:
             stop();
             petsleep();
+            break;
+        case kActionStateGoIdle:
+            // 刚待机：随机挑一个伸懒腰/挠痒动作过渡一下，再趴下睡觉
+            stop();
+            idle_activate(rand() % 3);
             break;
         case kActionStateStand:
             stop();
