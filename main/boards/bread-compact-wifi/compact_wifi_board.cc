@@ -6,9 +6,11 @@
 #include "button.h"
 #include "config.h"
 #include "mcp_server.h"
-#include "lamp_controller.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
+#include "dog_oled_display.h"
+#include "dog_controller.h"
+#include "rgb_lamp_controller.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -52,17 +54,17 @@ private:
         // SSD1306 config
         esp_lcd_panel_io_i2c_config_t io_config = {
             .dev_addr = 0x3C,
-            .scl_speed_hz = 400 * 1000,
+            .on_color_trans_done = nullptr,
+            .user_ctx = nullptr,
             .control_phase_bytes = 1,
             .dc_bit_offset = 6,
             .lcd_cmd_bits = 8,
             .lcd_param_bits = 8,
-            .on_color_trans_done = nullptr,
-            .user_ctx = nullptr,
             .flags = {
                 .dc_low_on_data = 0,
                 .disable_control_phase = 0,
             },
+            .scl_speed_hz = 400 * 1000,
         };
 
         ESP_ERROR_CHECK(esp_lcd_new_panel_io_i2c(display_i2c_bus_, &io_config, &panel_io_));
@@ -97,7 +99,7 @@ private:
         ESP_LOGI(TAG, "Turning display on");
         ESP_ERROR_CHECK(esp_lcd_panel_disp_on_off(panel_, true));
 
-        display_ = new OledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        display_ = new DogOledDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
     }
 
     void InitializeButtons() {
@@ -147,9 +149,10 @@ private:
         });
     }
 
-    // 物联网初始化，逐步迁移到 MCP 协议
+    // 物联网初始化：小狗动作 + RGB 灯带，均以 MCP 工具的形式对外提供控制能力
     void InitializeTools() {
-        static LampController lamp(LAMP_GPIO);
+        static DogController dog_controller(DOG_SERVO_GPIO_1, DOG_SERVO_GPIO_2, DOG_SERVO_GPIO_3, DOG_SERVO_GPIO_4);
+        static RgbLampController lamp_controller(LAMP_STRIP_GPIO_1, LAMP_STRIP_GPIO_2, LAMP_STRIP_LED_NUM);
     }
 
 public:

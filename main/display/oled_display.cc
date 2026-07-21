@@ -412,6 +412,18 @@ void OledDisplay::SetEmotion(const char* emotion) {
     }
 }
 
+void OledDisplay::SetContentVisible(bool visible) {
+    DisplayLockGuard lock(this);
+    if (container_ == nullptr) {
+        return;
+    }
+    if (visible) {
+        lv_obj_remove_flag(container_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(container_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
 void OledDisplay::SetTheme(Theme* theme) {
     DisplayLockGuard lock(this);
 

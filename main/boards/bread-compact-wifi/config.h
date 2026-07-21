@@ -52,8 +52,15 @@
 #define DISPLAY_MIRROR_X true
 #define DISPLAY_MIRROR_Y true
 
+// 小狗四路舵机引脚（从 0.9.9 版本迁移，保持不变）
+#define DOG_SERVO_GPIO_1 GPIO_NUM_14
+#define DOG_SERVO_GPIO_2 GPIO_NUM_17
+#define DOG_SERVO_GPIO_3 GPIO_NUM_13
+#define DOG_SERVO_GPIO_4 GPIO_NUM_18
 
-// A MCP Test: Control a lamp
-#define LAMP_GPIO GPIO_NUM_18
+// 双路 WS2812 RGB 灯带引脚（从 0.9.9 版本迁移，保持不变）
+#define LAMP_STRIP_GPIO_1 GPIO_NUM_38
+#define LAMP_STRIP_GPIO_2 GPIO_NUM_8
+#define LAMP_STRIP_LED_NUM 4
 
 #endif // _BOARD_CONFIG_H_

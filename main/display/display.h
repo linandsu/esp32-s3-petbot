@@ -49,6 +49,11 @@ public:
     virtual void SetEmojiCollection(std::shared_ptr<EmojiCollection>) {}
     virtual void SetupUI() { setup_ui_called_ = true; }
 
+    // Dog pet emotion hooks (used by boards with a custom eye animation, e.g. the pet dog OLED)
+    virtual void StartIdleEmotion() {}
+    virtual void StopIdleEmotion() {}
+    virtual void ShowIdleRestEmotion() {}
+
     inline int width() const { return width_; }
     inline int height() const { return height_; }
     inline bool IsSetupUICalled() const { return setup_ui_called_; }

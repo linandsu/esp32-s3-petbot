@@ -35,10 +35,15 @@
 
 # Build artifacts
 /build/
+/build2/
 /managed_components/
 /dependencies.lock
 sdkconfig
 sdkconfig.old
+.cache/
+
+# Generated at build time from assets/locales/*
+/main/assets/lang_config.h
 
 # Temporary upstream reference clone (used during v2.4.0 migration)
 /.v240_research/

@@ -36,6 +36,9 @@ public:
     virtual void SetChatMessage(const char* role, const char* content) override;
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetTheme(Theme* theme) override;
+
+    // 供子类（如带独立眼睛表情动画的宠物狗 OLED）临时隐藏/恢复标准 UI 容器
+    void SetContentVisible(bool visible);
 };
 
 #endif // OLED_DISPLAY_H
