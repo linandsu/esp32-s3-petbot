@@ -32,13 +32,19 @@
 #define TOUCH_BUTTON_GPIO       GPIO_NUM_47
 #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_40
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_39
-#define RESET_NVS_BUTTON_GPIO     GPIO_NUM_1
-#define RESET_FACTORY_BUTTON_GPIO GPIO_NUM_2
 
 #define DISPLAY_SDA_PIN GPIO_NUM_41
 #define DISPLAY_SCL_PIN GPIO_NUM_42
 #define DISPLAY_WIDTH   128
+
+#if CONFIG_OLED_SSD1306_128X32
 #define DISPLAY_HEIGHT  32
+#elif CONFIG_OLED_SSD1306_128X64
+#define DISPLAY_HEIGHT  64
+#else
+#error "OLED display type is not selected"
+#endif
+
 #define DISPLAY_MIRROR_X true
 #define DISPLAY_MIRROR_Y true
 
@@ -46,5 +52,8 @@
 #define ML307_RX_PIN GPIO_NUM_11
 #define ML307_TX_PIN GPIO_NUM_12
 
+
+// A MCP Test: Control a lamp
+#define LAMP_GPIO GPIO_NUM_18
 
 #endif // _BOARD_CONFIG_H_

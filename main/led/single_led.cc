@@ -12,13 +12,15 @@
 
 
 SingleLed::SingleLed(gpio_num_t gpio) {
-    // If the gpio is not connected, you should use NoLed class
-    assert(gpio != GPIO_NUM_NC);
+    if (gpio == GPIO_NUM_NC) {
+        ESP_LOGW(TAG, "SingleLed initialized with GPIO_NUM_NC, LED will not function");
+        return;
+    }
 
     led_strip_config_t strip_config = {};
     strip_config.strip_gpio_num = gpio;
     strip_config.max_leds = 1;
-    strip_config.led_pixel_format = LED_PIXEL_FORMAT_GRB;
+    strip_config.color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB;
     strip_config.led_model = LED_MODEL_WS2812;
 
     led_strip_rmt_config_t rmt_config = {};
@@ -34,14 +36,16 @@ SingleLed::SingleLed(gpio_num_t gpio) {
         },
         .arg = this,
         .dispatch_method = ESP_TIMER_TASK,
-        .name = "Blink Timer",
+        .name = "blink_timer",
         .skip_unhandled_events = false,
     };
     ESP_ERROR_CHECK(esp_timer_create(&blink_timer_args, &blink_timer_));
 }
 
 SingleLed::~SingleLed() {
-    esp_timer_stop(blink_timer_);
+    if (blink_timer_ != nullptr) {
+        esp_timer_stop(blink_timer_);
+    }
     if (led_strip_ != nullptr) {
         led_strip_del(led_strip_);
     }
@@ -136,6 +140,7 @@ void SingleLed::OnStateChanged() {
             TurnOn();
             break;
         case kDeviceStateListening:
+        case kDeviceStateAudioTesting:
             if (app.IsVoiceDetected()) {
                 SetColor(HIGH_BRIGHTNESS, 0, 0);
             } else {
@@ -151,8 +156,12 @@ void SingleLed::OnStateChanged() {
             SetColor(0, DEFAULT_BRIGHTNESS, 0);
             StartContinuousBlink(100);
             break;
+        case kDeviceStateActivating:
+            SetColor(0, DEFAULT_BRIGHTNESS, 0);
+            StartContinuousBlink(500);
+            break;
         default:
-            ESP_LOGE(TAG, "Invalid led strip event: %d", device_state);
+            ESP_LOGW(TAG, "Unknown led strip event: %d", device_state);
             return;
     }
 }
