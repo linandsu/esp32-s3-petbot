@@ -1,0 +1,44 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+.images
+
+# Build artifacts
+/build/
+/managed_components/
+/dependencies.lock
+sdkconfig
+sdkconfig.old
+
+# Temporary upstream reference clone (used during v2.4.0 migration)
+/.v240_research/
