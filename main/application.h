@@ -11,6 +11,8 @@
 #include <deque>
 #include <memory>
 #include <functional>
+#include <utility>
+#include <atomic>
 
 #include "protocol.h"
 #include "ota.h"
@@ -74,6 +76,12 @@ public:
      */
     bool SetDeviceState(DeviceState state);
 
+    // Allows board-specific components to react in the same transition that
+    // changes the device state, without polling for it later.
+    int AddStateChangeListener(DeviceStateMachine::StateCallback callback) {
+        return state_machine_.AddStateChangeListener(std::move(callback));
+    }
+
     /**
      * Schedule a callback to be executed in the main task
      */
@@ -98,12 +106,17 @@ public:
      * Sends MAIN_EVENT_START_LISTENING to be handled in Run()
      */
     void StartListening();
+    // Web controls use an explicit wake path so an idle audio engine is fully re-enabled.
+    void WakeForWebControl();
 
     /**
      * Stop listening (event-based, thread-safe)
      * Sends MAIN_EVENT_STOP_LISTENING to be handled in Run()
      */
     void StopListening();
+
+    // End the current conversation and return the device to its real idle/sleep state.
+    void EnterSleepMode();
 
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
@@ -113,6 +126,9 @@ public:
     void RegisterMcpBroadcastCallback(std::function<void(const std::string&)> callback);
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
+    bool IsAudioChannelOpened() const { return protocol_ && protocol_->IsAudioChannelOpened(); }
+    bool IsVoiceProcessingActive() const { return audio_service_.IsAudioProcessorRunning(); }
+    const char* GetListeningModeName() const;
     void PlaySound(const std::string_view& sound);
     AudioService& GetAudioService() { return audio_service_; }
     
@@ -146,6 +162,7 @@ private:
     bool assets_version_checked_ = false;
     bool play_popup_on_listening_ = false;  // Flag to play popup sound after state changes to listening
     bool pending_listening_start_ = false;  // Waiting for playback to drain before starting listening (auto mode)
+    std::atomic<bool> sleep_requested_{false};
     int clock_ticks_ = 0;
     TaskHandle_t activation_task_handle_ = nullptr;
 

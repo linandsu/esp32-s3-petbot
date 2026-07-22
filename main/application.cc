@@ -10,6 +10,9 @@
 #include "system_info.h"
 #include "text_glyph_payload.h"
 #include "websocket_protocol.h"
+#if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
+#include "boards/bread-compact-wifi/web_control_server.h"
+#endif
 
 #include <driver/gpio.h>
 #include <esp_log.h>
@@ -124,10 +127,19 @@ void Application::Initialize() {
                 std::string msg = Lang::Strings::CONNECTED_TO;
                 msg += data;
                 display->ShowNotification(msg.c_str(), 30000);
+#if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
+                if (WebControlServer::GetInstance().Start()) {
+                    const auto url = WebControlServer::GetInstance().GetControlUrl();
+                    if (!url.empty()) display->ShowNotification(url, 10000);
+                }
+#endif
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
                 break;
             }
             case NetworkEvent::Disconnected:
+#if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
+                WebControlServer::GetInstance().Stop();
+#endif
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
                 break;
             case NetworkEvent::WifiConfigModeEnter:
@@ -554,6 +566,10 @@ void Application::InitializeProtocol() {
             }
             if (strcmp(state->valuestring, "start") == 0) {
                 Schedule([this]() {
+                    if (sleep_requested_) {
+                        AbortSpeaking(kAbortReasonNone);
+                        return;
+                    }
                     aborted_ = false;
                     SetDeviceState(kDeviceStateSpeaking);
                 });
@@ -699,9 +715,62 @@ void Application::DismissAlert() {
 
 void Application::ToggleChatState() { xEventGroupSetBits(event_group_, MAIN_EVENT_TOGGLE_CHAT); }
 
-void Application::StartListening() { xEventGroupSetBits(event_group_, MAIN_EVENT_START_LISTENING); }
+void Application::StartListening() {
+    sleep_requested_ = false;
+    xEventGroupSetBits(event_group_, MAIN_EVENT_START_LISTENING);
+}
+
+void Application::WakeForWebControl() {
+    sleep_requested_ = false;
+    Schedule([this]() {
+        if (!protocol_) {
+            ESP_LOGE(TAG, "Cannot wake from web control: protocol not initialized");
+            return;
+        }
+
+        const auto state = GetDeviceState();
+        const auto mode = GetDefaultListeningMode();
+        play_popup_on_listening_ = true;
+
+        if (state == kDeviceStateIdle) {
+            if (!protocol_->IsAudioChannelOpened()) {
+                if (SetDeviceState(kDeviceStateConnecting)) {
+                    Schedule([this, mode]() { ContinueOpenAudioChannel(mode); });
+                }
+            } else {
+                SetListeningMode(mode);
+            }
+        } else if (state == kDeviceStateSpeaking) {
+            AbortSpeaking(kAbortReasonNone);
+            SetListeningMode(mode);
+        } else if (state == kDeviceStateListening) {
+            // Recover a previous manual-listening session without waiting for
+            // a stop button: restart it using the normal auto-stop mode.
+            listening_mode_ = mode;
+            StartListeningAudio();
+        }
+    });
+}
 
 void Application::StopListening() { xEventGroupSetBits(event_group_, MAIN_EVENT_STOP_LISTENING); }
+
+void Application::EnterSleepMode() {
+    sleep_requested_ = true;
+    Schedule([this]() {
+        const auto state = GetDeviceState();
+        if (state == kDeviceStateSpeaking) {
+            AbortSpeaking(kAbortReasonNone);
+        } else if (state == kDeviceStateListening && protocol_) {
+            protocol_->SendStopListening();
+        } else if (state == kDeviceStateConnecting && protocol_) {
+            protocol_->CloseAudioChannel();
+        }
+
+        if (state == kDeviceStateConnecting || state == kDeviceStateListening || state == kDeviceStateSpeaking) {
+            SetDeviceState(kDeviceStateIdle);
+        }
+    });
+}
 
 void Application::HandleToggleChatEvent() {
     auto state = GetDeviceState();
@@ -843,6 +912,7 @@ void Application::HandleWakeWordDetectedEvent() {
 }
 
 void Application::BeginWakeWordInvoke(const std::string& wake_word) {
+    sleep_requested_ = false;
     // Must run in the main task with the device in idle state
     audio_service_.EncodeWakeWord();
 
@@ -931,7 +1001,10 @@ void Application::HandleStateChangedEvent() {
             break;
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
-            display->SetEmotion("neutral");
+            // Keep custom face displays in their focused listening expression.
+            // Sending "neutral" here produced a visible neutral-frame flash
+            // before the board controller's listening expression arrived.
+            display->SetEmotion("listening");
 
             // Make sure the audio processor is running
             if (play_popup_on_listening_ || !audio_service_.IsAudioProcessorRunning()) {
@@ -1021,6 +1094,15 @@ void Application::SetListeningMode(ListeningMode mode) {
 
 ListeningMode Application::GetDefaultListeningMode() const {
     return aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime;
+}
+
+const char* Application::GetListeningModeName() const {
+    switch (listening_mode_) {
+        case kListeningModeAutoStop: return "auto";
+        case kListeningModeManualStop: return "manual";
+        case kListeningModeRealtime: return "realtime";
+        default: return "unknown";
+    }
 }
 
 void Application::Reboot() {

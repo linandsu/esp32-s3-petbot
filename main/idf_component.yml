@@ -142,6 +142,7 @@ dependencies:
   espressif/bq27220:
     public: true
     version: '*'
+  espressif/mdns: ^1.8.3
 
   ## Required IDF version
   idf:

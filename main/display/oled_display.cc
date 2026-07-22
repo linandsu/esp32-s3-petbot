@@ -414,6 +414,10 @@ void OledDisplay::SetEmotion(const char* emotion) {
 
 void OledDisplay::SetContentVisible(bool visible) {
     DisplayLockGuard lock(this);
+    SetContentVisibleLocked(visible);
+}
+
+void OledDisplay::SetContentVisibleLocked(bool visible) {
     if (container_ == nullptr) {
         return;
     }

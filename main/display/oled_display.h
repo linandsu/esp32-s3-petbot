@@ -39,6 +39,9 @@ public:
 
     // 供子类（如带独立眼睛表情动画的宠物狗 OLED）临时隐藏/恢复标准 UI 容器
     void SetContentVisible(bool visible);
+    // Same operation for a caller that already owns the LVGL display lock.
+    // This lets composite pet-screen transitions be submitted atomically.
+    void SetContentVisibleLocked(bool visible);
 };
 
 #endif // OLED_DISPLAY_H

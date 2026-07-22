@@ -53,8 +53,10 @@ public:
     // Exactly one of these three is active at a time, driven externally by DogController
     // based on device conversation state + idle duration.
     virtual void ShowDogFace() {}          // 正常对话时的默认页面：睁眼的小狗表情
+    virtual void ShowDogStartup() {}       // 开机联网/激活期间显示标准初始化 UI
     virtual void ShowDogSleepFace() {}     // 刚进入待机时：呼呼大睡的小狗表情
     virtual void ShowLockScreen() {}       // 待机超过一定时长后：时间/日期锁屏页面
+    virtual void ShowControlUrl(const char* url, int duration_ms = 15000) {}
 
     inline int width() const { return width_; }
     inline int height() const { return height_; }

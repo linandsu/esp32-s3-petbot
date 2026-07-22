@@ -16,6 +16,9 @@
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
+#include <esp_random.h>
+
+#include <array>
 
 #ifdef SH1106
 #include <esp_lcd_panel_sh1106.h>
@@ -111,11 +114,40 @@ private:
             }
             app.ToggleChatState();
         });
-        touch_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
+        touch_button_.OnClick([this]() {
+            auto& app = Application::GetInstance();
+            const auto state = app.GetDeviceState();
+            if (state == kDeviceStateStarting) {
+                EnterWifiConfigMode();
+            } else if (state == kDeviceStateIdle) {
+                app.WakeForWebControl();
+            } else if (state == kDeviceStateConnecting ||
+                       state == kDeviceStateListening ||
+                       state == kDeviceStateSpeaking) {
+                app.EnterSleepMode();
+            }
         });
-        touch_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
+
+        touch_button_.OnDoubleClick([]() {
+            const auto state = Application::GetInstance().GetDeviceState();
+            if (state != kDeviceStateIdle && state != kDeviceStateListening &&
+                state != kDeviceStateSpeaking) {
+                return;
+            }
+            static constexpr std::array<const char*, 5> kSafeActions = {
+                "stand", "sitdown", "turn_left", "turn_right", "wave"
+            };
+            if (auto* dog = DogController::GetInstance()) {
+                const auto index = esp_random() % kSafeActions.size();
+                dog->ExecuteAction(kSafeActions[index]);
+            }
+        });
+
+        touch_button_.OnLongPress([this]() {
+            if (auto* lamp = RgbLampController::GetInstance()) {
+                const bool turned_on = lamp->TogglePower();
+                GetDisplay()->ShowNotification(turned_on ? "LIGHT ON" : "LIGHT OFF", 1500);
+            }
         });
 
         volume_up_button_.OnClick([this]() {
@@ -158,7 +190,7 @@ private:
 public:
     CompactWifiBoard() :
         boot_button_(BOOT_BUTTON_GPIO),
-        touch_button_(TOUCH_BUTTON_GPIO),
+        touch_button_(TOUCH_BUTTON_GPIO, true, 1200),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
         InitializeDisplayI2c();
