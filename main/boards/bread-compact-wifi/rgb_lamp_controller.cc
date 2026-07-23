@@ -1,4 +1,5 @@
 #include "rgb_lamp_controller.h"
+#include "battery_monitor.h"
 
 #include <esp_log.h>
 
@@ -50,17 +51,25 @@ void RgbLampController::UpdateColor(uint8_t r, uint8_t g, uint8_t b) {
     green_ = g;
     blue_ = b;
     if (current_effect_ == Effect::kNone) {
-        effect_ = (r == 0 && g == 0 && b == 0) ? "off" : "color";
-        RenderSolid();
+        if (IsOn()) {
+            RenderSolid();
+        } else {
+            saved_red_ = r;
+            saved_green_ = g;
+            saved_blue_ = b;
+        }
     }
     RememberCurrentState();
 }
 
 void RgbLampController::SetBrightness(uint8_t brightness) {
-    if (IsOn()) RememberCurrentState();
     brightness_ = brightness;
     if (current_effect_ == Effect::kNone) {
-        RenderSolid();
+        if (IsOn()) {
+            RenderSolid();
+        } else {
+            saved_brightness_ = brightness;
+        }
     }
     RememberCurrentState();
 }
@@ -71,6 +80,7 @@ bool RgbLampController::Configure(const std::string& effect, uint8_t r, uint8_t 
         TurnOff();
         return true;
     }
+    if (BatteryMonitor::GetInstance() && BatteryMonitor::GetInstance()->IsHighLoadBlocked()) return false;
     red_ = r;
     green_ = g;
     blue_ = b;
@@ -83,10 +93,6 @@ bool RgbLampController::Configure(const std::string& effect, uint8_t r, uint8_t 
 void RgbLampController::TurnOff() {
     if (IsOn()) RememberCurrentState();
     StopEffectTask();
-    red_ = 0;
-    green_ = 0;
-    blue_ = 0;
-    brightness_ = 0;
     effect_ = "off";
     SetAllPixels(0, 0, 0);
 }
@@ -116,6 +122,8 @@ void RgbLampController::RememberCurrentState() {
 bool RgbLampController::SetEffect(const std::string& effect) {
     if (effect == "off") {
         TurnOff();
+    } else if (BatteryMonitor::GetInstance() && BatteryMonitor::GetInstance()->IsHighLoadBlocked()) {
+        return false;
     } else if (effect == "flash") {
         effect_ = "flash";
         StartEffect(Effect::kFlashlight);
@@ -137,6 +145,7 @@ bool RgbLampController::SetEffect(const std::string& effect) {
         return false;
     }
     RememberCurrentState();
+    if (effect != "off" && BatteryMonitor::GetInstance()) BatteryMonitor::GetInstance()->HoldLevelUpdates(3000);
     return true;
 }
 

@@ -2,6 +2,9 @@
 #include "audio_service.h"
 #include "system_info.h"
 #include "assets.h"
+#if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
+#include "wake_word_config.h"
+#endif
 
 #include <esp_log.h>
 #include <esp_mn_iface.h>
@@ -35,6 +38,17 @@ CustomWakeWord::~CustomWakeWord() {
 }
 
 void CustomWakeWord::ParseWakenetModelConfig() {
+#if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
+    const auto wake_config = WakeWordConfig::GetInstance().GetState();
+    if (wake_config.mode == WakeWordConfig::Mode::kCustom) {
+        language_ = "cn";
+        duration_ = 3000;
+        threshold_ = wake_config.threshold;
+        commands_.push_back(
+            {wake_config.command_pinyin, wake_config.display_text, "wake"});
+        return;
+    }
+#endif
     // Read index.json
     auto& assets = Assets::GetInstance();
     void* ptr = nullptr;
@@ -121,10 +135,32 @@ bool CustomWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) 
     multinet_->set_det_threshold(multinet_model_data_, threshold_);
     input_buffer_.reserve(multinet_->get_samp_chunksize(multinet_model_data_));
     esp_mn_commands_clear();
+    bool commands_valid = !commands_.empty();
     for (int i = 0; i < commands_.size(); i++) {
-        esp_mn_commands_add(i + 1, commands_[i].command.c_str());
+        if (esp_mn_commands_add(i + 1, commands_[i].command.c_str()) != ESP_OK) {
+            commands_valid = false;
+            break;
+        }
     }
-    esp_mn_commands_update();
+    if (commands_valid && esp_mn_commands_update() != nullptr) commands_valid = false;
+
+    if (!commands_valid) {
+        ESP_LOGE(TAG, "Invalid custom wake word command; using safe default");
+        esp_mn_commands_clear();
+        commands_.clear();
+#if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
+        commands_.push_back(
+            {WakeWordConfig::DefaultPinyin(), WakeWordConfig::DefaultDisplayText(), "wake"});
+        WakeWordConfig::GetInstance().FallBackToDefault("自定义唤醒词拼音无法被模型解析");
+#else
+        commands_.push_back({"ni hao xiao zhi", "你好小智", "wake"});
+#endif
+        if (esp_mn_commands_add(1, commands_.front().command.c_str()) != ESP_OK ||
+            esp_mn_commands_update() != nullptr) {
+            ESP_LOGE(TAG, "Failed to install safe default MultiNet command");
+            return false;
+        }
+    }
     
     multinet_->print_active_speech_commands(multinet_model_data_);
 #if CONFIG_SEND_WAKE_WORD_DATA

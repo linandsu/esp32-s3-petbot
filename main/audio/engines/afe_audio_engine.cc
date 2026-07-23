@@ -11,8 +11,24 @@
 
 #include "audio_service.h"
 #include "wake_words/custom_wake_word.h"
+#if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
+#include "wake_word_config.h"
+#endif
 
 #define TAG "AfeAudioEngine"
+
+namespace {
+char* FindSpeechModel(srmodel_list_t* models, const char* expected_name) {
+    if (models == nullptr || expected_name == nullptr) return nullptr;
+    for (int i = 0; i < models->num; ++i) {
+        if (models->model_name[i] != nullptr &&
+            std::strstr(models->model_name[i], expected_name) != nullptr) {
+            return models->model_name[i];
+        }
+    }
+    return nullptr;
+}
+}  // namespace
 
 #if CONFIG_USE_AUDIO_PROCESSOR
 static constexpr bool kUseAfeForVoiceProcessing = true;
@@ -65,9 +81,31 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms, srmode
 
     char* wakenet_model_name = nullptr;
     char* multinet_model_name = nullptr;
+    float wake_threshold = 0.0f;
     if (models_ != nullptr && models_->num > 0) {
+#if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
+        const auto wake_config = WakeWordConfig::GetInstance().GetState();
+        wake_threshold = wake_config.threshold;
+        if (wake_config.mode == WakeWordConfig::Mode::kCustom) {
+            multinet_model_name = FindSpeechModel(models_, "mn7_cn");
+            if (multinet_model_name == nullptr) {
+                WakeWordConfig::GetInstance().FallBackToDefault("中文自定义唤醒模型缺失");
+                wakenet_model_name =
+                    FindSpeechModel(models_, WakeWordConfig::DefaultModel());
+            }
+        } else {
+            wakenet_model_name =
+                FindSpeechModel(models_, wake_config.preset_model.c_str());
+            if (wakenet_model_name == nullptr) {
+                WakeWordConfig::GetInstance().FallBackToDefault("预设唤醒模型缺失");
+                wakenet_model_name =
+                    FindSpeechModel(models_, WakeWordConfig::DefaultModel());
+            }
+        }
+#else
         wakenet_model_name = esp_srmodel_filter(models_, ESP_WN_PREFIX, nullptr);
         multinet_model_name = esp_srmodel_filter(models_, ESP_MN_PREFIX, nullptr);
+#endif
         for (int i = 0; i < models_->num; ++i) {
             ESP_LOGI(TAG, "Model %d: %s", i, models_->model_name[i]);
         }
@@ -146,6 +184,12 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms, srmode
     afe_config->wakenet_model_name = wake_detector_ == WakeDetector::kWakeNet
         ? wakenet_model_name
         : nullptr;
+#if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
+    // afe_config_init() automatically fills the first two WakeNet models it
+    // finds. This board packages several selectable presets, but only the one
+    // saved by the user must be active at runtime.
+    afe_config->wakenet_model_name_2 = nullptr;
+#endif
     afe_config->agc_init = false;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
 
@@ -164,6 +208,14 @@ bool AfeAudioEngine::Initialize(AudioCodec* codec, int frame_duration_ms, srmode
 
     if (wake_detector_ == WakeDetector::kWakeNet) {
         afe_iface_->disable_wakenet(afe_data_);
+#if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
+        if (wake_threshold >= 0.40f &&
+            afe_iface_->set_wakenet_threshold(afe_data_, 1, wake_threshold) != 1) {
+            ESP_LOGW(TAG, "Failed to set WakeNet threshold: %.2f", wake_threshold);
+        } else {
+            ESP_LOGI(TAG, "WakeNet threshold: %.2f", wake_threshold);
+        }
+#endif
     }
     if (codec_->input_reference()) {
         afe_iface_->disable_aec(afe_data_);

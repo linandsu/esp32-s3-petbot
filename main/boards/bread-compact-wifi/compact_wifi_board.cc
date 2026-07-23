@@ -11,6 +11,7 @@
 #include "dog_oled_display.h"
 #include "dog_controller.h"
 #include "rgb_lamp_controller.h"
+#include "battery_monitor.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -121,9 +122,13 @@ private:
                 EnterWifiConfigMode();
             } else if (state == kDeviceStateIdle) {
                 app.WakeForWebControl();
+            } else if (state == kDeviceStateSpeaking) {
+                // A single touch during playback is an interrupt, not a
+                // sleep request.  Reuse the normal wake path so playback is
+                // aborted and the microphone returns to auto listening.
+                app.WakeForWebControl();
             } else if (state == kDeviceStateConnecting ||
-                       state == kDeviceStateListening ||
-                       state == kDeviceStateSpeaking) {
+                       state == kDeviceStateListening) {
                 app.EnterSleepMode();
             }
         });
@@ -185,6 +190,7 @@ private:
     void InitializeTools() {
         static DogController dog_controller(DOG_SERVO_GPIO_1, DOG_SERVO_GPIO_2, DOG_SERVO_GPIO_3, DOG_SERVO_GPIO_4);
         static RgbLampController lamp_controller(LAMP_STRIP_GPIO_1, LAMP_STRIP_GPIO_2, LAMP_STRIP_LED_NUM);
+        static BatteryMonitor battery_monitor;
     }
 
 public:

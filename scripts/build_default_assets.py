@@ -812,6 +812,10 @@ def main():
     parser.add_argument('--esp_sr_model_path', help='Path to ESP-SR model directory')
     parser.add_argument('--noto_fonts_path', help='Path to noto-fonts component directory')
     parser.add_argument('--extra_files', help='Path to extra files directory to be included in assets')
+    parser.add_argument('--extra_wakenet_model', action='append', default=[],
+                        help='Additional WakeNet model name to package')
+    parser.add_argument('--extra_multinet_model', action='append', default=[],
+                        help='Additional MultiNet model name to package')
     
     args = parser.parse_args()
     
@@ -839,6 +843,8 @@ def main():
     # Read SR models from sdkconfig
     wakenet_model_names = read_wakenet_from_sdkconfig(args.sdkconfig)
     multinet_model_names = read_multinet_from_sdkconfig(args.sdkconfig)
+    wakenet_model_names = list(dict.fromkeys(wakenet_model_names + args.extra_wakenet_model))
+    multinet_model_names = list(dict.fromkeys(multinet_model_names + args.extra_multinet_model))
     
     # Apply wake word logic to decide which models to package
     wakenet_model_paths = []
@@ -857,7 +863,7 @@ def main():
         sys.exit(1)
     
     # 3. Only package multinet models if USE_CUSTOM_WAKE_WORD=y
-    if wake_word_config['use_custom_wake_word']:
+    if wake_word_config['use_custom_wake_word'] or args.extra_multinet_model:
         multinet_model_paths = get_multinet_model_paths(multinet_model_names, args.esp_sr_model_path)
     elif multinet_model_names:
         print(f"  Note: Found multinet models {multinet_model_names} but USE_CUSTOM_WAKE_WORD is disabled, skipping")

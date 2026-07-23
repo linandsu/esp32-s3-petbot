@@ -7,10 +7,13 @@
 #include "display.h"
 #include "dog_controller.h"
 #include "rgb_lamp_controller.h"
+#include "battery_monitor.h"
+#include "wake_word_config.h"
 
 #include <cJSON.h>
 #include <esp_log.h>
 #include <esp_netif.h>
+#include <esp_system.h>
 #include <mdns.h>
 
 #include <cstdlib>
@@ -20,6 +23,8 @@ static const char* TAG = "DogWebControl";
 
 extern const uint8_t web_control_html_start[] asm("_binary_web_control_html_start");
 extern const uint8_t web_control_html_end[] asm("_binary_web_control_html_end");
+extern const uint8_t pinyin_pro_min_js_start[] asm("_binary_pinyin_pro_min_js_start");
+extern const uint8_t pinyin_pro_min_js_end[] asm("_binary_pinyin_pro_min_js_end");
 
 WebControlServer& WebControlServer::GetInstance() {
     static WebControlServer instance;
@@ -69,9 +74,11 @@ bool WebControlServer::Start() {
 
     httpd_uri_t root = {.uri = "/", .method = HTTP_GET, .handler = RootHandler, .user_ctx = this};
     httpd_uri_t status = {.uri = "/api/status", .method = HTTP_GET, .handler = StatusHandler, .user_ctx = this};
+    httpd_uri_t pinyin = {.uri = "/vendor/pinyin-pro.min.js", .method = HTTP_GET, .handler = PinyinHandler, .user_ctx = this};
     httpd_uri_t ws = {.uri = "/api/ws", .method = HTTP_GET, .handler = WsHandler, .user_ctx = this, .is_websocket = true};
     httpd_register_uri_handler(server_, &root);
     httpd_register_uri_handler(server_, &status);
+    httpd_register_uri_handler(server_, &pinyin);
     httpd_register_uri_handler(server_, &ws);
     ESP_ERROR_CHECK(esp_timer_start_periodic(status_timer_, 2000000));
     ESP_LOGI(TAG, "Local control server started on port 80");
@@ -110,6 +117,13 @@ esp_err_t WebControlServer::StatusHandler(httpd_req_t* req) {
     return httpd_resp_sendstr(req, status.c_str());
 }
 
+esp_err_t WebControlServer::PinyinHandler(httpd_req_t* req) {
+    httpd_resp_set_type(req, "application/javascript; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400");
+    return httpd_resp_send(req, reinterpret_cast<const char*>(pinyin_pro_min_js_start),
+                           pinyin_pro_min_js_end - pinyin_pro_min_js_start);
+}
+
 esp_err_t WebControlServer::WsHandler(httpd_req_t* req) {
     auto& server = GetInstance();
     const int fd = httpd_req_to_sockfd(req);
@@ -141,6 +155,14 @@ void WebControlServer::StatusTimerCallback(void* arg) {
     static_cast<WebControlServer*>(arg)->BroadcastStatus();
 }
 
+void WebControlServer::RestartTask(void* arg) {
+    auto* server = static_cast<WebControlServer*>(arg);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+    ESP_LOGI(TAG, "Applying wake-word configuration and restarting");
+    server->restart_pending_ = false;
+    esp_restart();
+}
+
 void WebControlServer::SendWs(int fd, const std::string& payload) {
     if (server_ == nullptr) return;
     httpd_ws_frame_t frame = {};
@@ -169,6 +191,20 @@ std::string WebControlServer::BuildStatusJson() const {
         cJSON* lamp_json = cJSON_Parse(lamp->GetStatusJson().c_str());
         cJSON_AddItemToObject(root, "lamp", lamp_json == nullptr ? cJSON_CreateObject() : lamp_json);
     }
+    if (auto* battery = BatteryMonitor::GetInstance()) {
+        cJSON* battery_json = cJSON_Parse(battery->GetStatusJson().c_str());
+        cJSON_AddItemToObject(root, "battery", battery_json == nullptr ? cJSON_CreateObject() : battery_json);
+    }
+    const auto wake_word = WakeWordConfig::GetInstance().GetState();
+    cJSON* wake_json = cJSON_AddObjectToObject(root, "wake_word");
+    cJSON_AddStringToObject(wake_json, "mode", WakeWordConfig::ModeName(wake_word.mode).c_str());
+    cJSON_AddStringToObject(wake_json, "display_text", wake_word.display_text.c_str());
+    cJSON_AddStringToObject(wake_json, "preset_model", wake_word.preset_model.c_str());
+    cJSON_AddStringToObject(wake_json, "command_pinyin", wake_word.command_pinyin.c_str());
+    cJSON_AddNumberToObject(wake_json, "threshold", wake_word.threshold);
+    cJSON_AddBoolToObject(wake_json, "fallback", wake_word.fallback);
+    cJSON_AddStringToObject(wake_json, "fallback_reason", wake_word.fallback_reason.c_str());
+    cJSON_AddBoolToObject(wake_json, "restart_pending", restart_pending_);
     const auto url = GetControlUrl();
     if (!url.empty()) cJSON_AddStringToObject(root, "control_url", url.c_str());
     char* text = cJSON_PrintUnformatted(root);
@@ -183,7 +219,8 @@ void WebControlServer::HandleCommand(httpd_req_t* req, const char* payload, size
     const int fd = httpd_req_to_sockfd(req);
     bool ok = false;
     bool broadcast_on_success = true;
-    const char* error = "invalid command";
+    bool restart_required = false;
+    std::string error = "invalid command";
     int id = 0;
     if (root != nullptr) {
         if (auto* id_item = cJSON_GetObjectItem(root, "id"); cJSON_IsNumber(id_item)) id = id_item->valueint;
@@ -204,10 +241,9 @@ void WebControlServer::HandleCommand(httpd_req_t* req, const char* payload, size
             int b = cJSON_IsNumber(b_item) ? b_item->valueint : -1;
             int brightness = cJSON_IsNumber(brightness_item) ? brightness_item->valueint : -1;
             if (r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255 && brightness >= 0 && brightness <= 255) {
-                RgbLampController::GetInstance()->SetColor(r, g, b, brightness);
-                ok = true;
+                ok = RgbLampController::GetInstance()->Configure("color", r, g, b, brightness);
             }
-            error = "invalid lamp color";
+            error = "invalid lamp color or battery protection active";
         } else if (strcmp(name, "lamp.update") == 0 && RgbLampController::GetInstance() && args) {
             // Slider/color-picker updates are a high-frequency stream. The
             // requester already has the new local value, and the periodic
@@ -226,7 +262,8 @@ void WebControlServer::HandleCommand(httpd_req_t* req, const char* payload, size
                  b_item->valueint >= 0 && b_item->valueint <= 255);
             const bool brightness_valid = !has_brightness ||
                 (brightness_item->valueint >= 0 && brightness_item->valueint <= 255);
-            if ((has_color || has_brightness) && color_valid && brightness_valid) {
+            if ((has_color || has_brightness) && color_valid && brightness_valid &&
+                !(BatteryMonitor::GetInstance() && BatteryMonitor::GetInstance()->IsHighLoadBlocked())) {
                 if (has_color) {
                     RgbLampController::GetInstance()->UpdateColor(
                         r_item->valueint, g_item->valueint, b_item->valueint);
@@ -236,11 +273,28 @@ void WebControlServer::HandleCommand(httpd_req_t* req, const char* payload, size
                 }
                 ok = true;
             }
-            error = "invalid lamp update";
+            error = "invalid lamp update or battery protection active";
         } else if (strcmp(name, "lamp.effect") == 0 && RgbLampController::GetInstance() && args) {
             auto* effect = cJSON_GetObjectItem(args, "effect");
             ok = cJSON_IsString(effect) && RgbLampController::GetInstance()->SetEffect(effect->valuestring);
             error = "unsupported lamp effect";
+        } else if (strcmp(name, "lamp.configure") == 0 && RgbLampController::GetInstance() && args) {
+            auto* effect = cJSON_GetObjectItem(args, "effect");
+            auto* r = cJSON_GetObjectItem(args, "r");
+            auto* g = cJSON_GetObjectItem(args, "g");
+            auto* b = cJSON_GetObjectItem(args, "b");
+            auto* brightness = cJSON_GetObjectItem(args, "brightness");
+            if (cJSON_IsString(effect) && cJSON_IsNumber(r) && cJSON_IsNumber(g) &&
+                cJSON_IsNumber(b) && cJSON_IsNumber(brightness) &&
+                r->valueint >= 0 && r->valueint <= 255 &&
+                g->valueint >= 0 && g->valueint <= 255 &&
+                b->valueint >= 0 && b->valueint <= 255 &&
+                brightness->valueint >= 0 && brightness->valueint <= 255) {
+                ok = RgbLampController::GetInstance()->Configure(
+                    effect->valuestring, r->valueint, g->valueint, b->valueint,
+                    brightness->valueint);
+            }
+            error = "invalid lamp configuration";
         } else if (strcmp(name, "emotion.set") == 0 && args) {
             auto* emotion = cJSON_GetObjectItem(args, "emotion");
             if (auto* display = Board::GetInstance().GetDisplay(); display && cJSON_IsString(emotion)) {
@@ -268,12 +322,63 @@ void WebControlServer::HandleCommand(httpd_req_t* req, const char* payload, size
         } else if (strcmp(name, "device.wake") == 0) {
             Application::GetInstance().WakeForWebControl();
             ok = true;
+        } else if (strcmp(name, "wake_word.set") == 0 && args) {
+            auto* mode = cJSON_GetObjectItem(args, "mode");
+            if (!cJSON_IsString(mode)) {
+                error = "缺少唤醒词模式";
+            } else {
+                auto* threshold = cJSON_GetObjectItem(args, "threshold");
+                if (!cJSON_IsNumber(threshold)) {
+                    error = "请设置有效的检测阈值";
+                } else if (strcmp(mode->valuestring, "preset") == 0) {
+                    auto* model = cJSON_GetObjectItem(args, "preset_model");
+                    if (!cJSON_IsString(model)) {
+                        error = "请选择预设唤醒词";
+                    } else {
+                        ok = WakeWordConfig::GetInstance().SavePreset(
+                            model->valuestring, threshold->valuedouble, error);
+                    }
+                } else if (strcmp(mode->valuestring, "custom") == 0) {
+                    auto* display = cJSON_GetObjectItem(args, "display_text");
+                    auto* pinyin = cJSON_GetObjectItem(args, "command_pinyin");
+                    if (!cJSON_IsString(display) || !cJSON_IsString(pinyin)) {
+                        error = "请填写中文唤醒词和识别拼音";
+                    } else {
+                        ok = WakeWordConfig::GetInstance().SaveCustom(
+                            display->valuestring, pinyin->valuestring, threshold->valuedouble, error);
+                    }
+                } else {
+                    error = "不支持的唤醒词模式";
+                }
+            }
+            if (ok) {
+                restart_required = true;
+                if (!restart_pending_) {
+                    restart_pending_ = true;
+                    if (xTaskCreate(&WebControlServer::RestartTask, "wake_word_restart", 2048,
+                                    this, 4, nullptr) != pdPASS) {
+                        restart_pending_ = false;
+                        ok = false;
+                        restart_required = false;
+                        error = "配置已保存，但创建重启任务失败，请手动重启设备";
+                    }
+                }
+            }
         }
     }
     if (root != nullptr) cJSON_Delete(root);
-    char reply[128];
-    snprintf(reply, sizeof(reply), "{\"type\":\"result\",\"id\":%d,\"ok\":%s%s%s%s}", id, ok ? "true" : "false",
-             ok ? "" : ",\"error\":\"", ok ? "" : error, ok ? "" : "\"");
-    SendWs(fd, reply);
+    cJSON* reply = cJSON_CreateObject();
+    cJSON_AddStringToObject(reply, "type", "result");
+    cJSON_AddNumberToObject(reply, "id", id);
+    cJSON_AddBoolToObject(reply, "ok", ok);
+    if (!ok) cJSON_AddStringToObject(reply, "error", error.c_str());
+    if (restart_required) {
+        cJSON_AddBoolToObject(reply, "restart_required", true);
+        cJSON_AddNumberToObject(reply, "restart_in_ms", 3000);
+    }
+    char* reply_text = cJSON_PrintUnformatted(reply);
+    SendWs(fd, reply_text == nullptr ? "{\"type\":\"result\",\"ok\":false}" : reply_text);
+    if (reply_text != nullptr) cJSON_free(reply_text);
+    cJSON_Delete(reply);
     if (ok && broadcast_on_success) BroadcastStatus();
 }

@@ -7,6 +7,7 @@
 #include "display.h"
 #include "sntp_clock.h"
 #include "web_control_server.h"
+#include "battery_monitor.h"
 
 #include <esp_log.h>
 
@@ -37,6 +38,10 @@ DogController::DogController(gpio_num_t servo_io_1, gpio_num_t servo_io_2, gpio_
 }
 
 bool DogController::ExecuteAction(const std::string& action) {
+    if (action != "stop" && BatteryMonitor::GetInstance() && BatteryMonitor::GetInstance()->IsHighLoadBlocked()) {
+        ESP_LOGW(TAG, "Action blocked by low battery: %s", action.c_str());
+        return false;
+    }
     if (action == "walk") dog_.RequestAction(kActionStateWalk);
     else if (action == "walk_back") dog_.RequestAction(kActionStateWalkBack);
     else if (action == "stand") dog_.RequestAction(kActionStateStand);
@@ -49,6 +54,7 @@ bool DogController::ExecuteAction(const std::string& action) {
     else return false;
 
     current_action_ = action;
+    if (action != "stop" && BatteryMonitor::GetInstance()) BatteryMonitor::GetInstance()->HoldLevelUpdates(6000);
     return true;
 }
 

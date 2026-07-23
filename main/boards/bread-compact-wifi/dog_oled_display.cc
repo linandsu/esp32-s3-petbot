@@ -365,6 +365,144 @@ void DogOledDisplay::CreateLockScreen() {
     lv_obj_add_flag(lock_screen_, LV_OBJ_FLAG_HIDDEN);
 }
 
+void DogOledDisplay::UpdateBatteryIndicator(int level, float voltage, int percent) {
+    DisplayLockGuard lock(this);
+    if (battery_label_ == nullptr) {
+        battery_label_ = lv_label_create(lv_screen_active());
+        lv_obj_set_style_text_font(battery_label_, &lv_font_montserrat_14, 0);
+        lv_obj_align(battery_label_, LV_ALIGN_TOP_LEFT, 21, 0);
+    }
+    if (battery_icon_body_ == nullptr) {
+        battery_icon_body_ = lv_obj_create(lv_screen_active());
+        lv_obj_set_size(battery_icon_body_, 16, 9);
+        lv_obj_align(battery_icon_body_, LV_ALIGN_TOP_LEFT, 2, 2);
+        lv_obj_set_style_bg_opa(battery_icon_body_, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(battery_icon_body_, 1, 0);
+        lv_obj_set_style_border_color(battery_icon_body_, lv_color_black(), 0);
+        lv_obj_set_style_radius(battery_icon_body_, 1, 0);
+        lv_obj_set_style_pad_all(battery_icon_body_, 1, 0);
+        lv_obj_remove_flag(battery_icon_body_, LV_OBJ_FLAG_CLICKABLE);
+
+        battery_icon_fill_ = lv_obj_create(battery_icon_body_);
+        lv_obj_set_size(battery_icon_fill_, 11, 5);
+        lv_obj_align(battery_icon_fill_, LV_ALIGN_LEFT_MID, 1, 0);
+        lv_obj_set_style_bg_color(battery_icon_fill_, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(battery_icon_fill_, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(battery_icon_fill_, 0, 0);
+        lv_obj_set_style_radius(battery_icon_fill_, 0, 0);
+        lv_obj_remove_flag(battery_icon_fill_, LV_OBJ_FLAG_CLICKABLE);
+
+        battery_icon_cap_ = lv_obj_create(lv_screen_active());
+        lv_obj_set_size(battery_icon_cap_, 2, 4);
+        lv_obj_align(battery_icon_cap_, LV_ALIGN_TOP_LEFT, 18, 4);
+        lv_obj_set_style_bg_color(battery_icon_cap_, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(battery_icon_cap_, LV_OPA_COVER, 0);
+        lv_obj_set_style_border_width(battery_icon_cap_, 0, 0);
+        lv_obj_set_style_radius(battery_icon_cap_, 0, 0);
+        lv_obj_remove_flag(battery_icon_cap_, LV_OBJ_FLAG_CLICKABLE);
+    }
+    if (battery_critical_label_ == nullptr) {
+        battery_critical_label_ = lv_label_create(lv_screen_active());
+        lv_obj_set_style_text_font(battery_critical_label_, &lv_font_montserrat_14, 0);
+        lv_obj_align(battery_critical_label_, LV_ALIGN_TOP_RIGHT, -2, 1);
+    }
+    if (battery_protect_panel_ == nullptr) {
+        battery_protect_panel_ = lv_label_create(lv_screen_active());
+        lv_obj_set_size(battery_protect_panel_, LV_HOR_RES, LV_VER_RES);
+        lv_obj_set_style_bg_color(battery_protect_panel_, lv_color_black(), 0);
+        lv_obj_set_style_bg_opa(battery_protect_panel_, LV_OPA_COVER, 0);
+        lv_obj_set_style_text_color(battery_protect_panel_, lv_color_white(), 0);
+        lv_obj_set_style_text_align(battery_protect_panel_, LV_TEXT_ALIGN_CENTER, 0);
+        lv_obj_set_style_text_font(battery_protect_panel_, &lv_font_montserrat_14, 0);
+        lv_obj_center(battery_protect_panel_);
+    }
+    const bool idle_page = mode_ == Mode::kSleepFace || mode_ == Mode::kLockScreen;
+    if (level >= 6 && idle_page) {
+        char text[80]; snprintf(text, sizeof(text), "电量过低\n请连接充电器\n%.2fV  %d%%", voltage, percent);
+        lv_label_set_text(battery_protect_panel_, text);
+        lv_obj_remove_flag(battery_protect_panel_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(battery_protect_panel_);
+        lv_obj_add_flag(battery_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(battery_icon_body_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(battery_icon_cap_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(battery_critical_label_, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    lv_obj_add_flag(battery_protect_panel_, LV_OBJ_FLAG_HIDDEN);
+    if (!idle_page) {
+        lv_obj_add_flag(battery_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(battery_icon_body_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(battery_icon_cap_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(battery_critical_label_, LV_OBJ_FLAG_HIDDEN);
+        return;
+    }
+    const int clamped_percent = percent < 0 ? 0 : (percent > 100 ? 100 : percent);
+    const int fill_width = clamped_percent == 0 ? 0 : 1 + (clamped_percent * 10) / 100;
+    lv_obj_set_width(battery_icon_fill_, fill_width);
+    lv_obj_remove_flag(battery_icon_body_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_remove_flag(battery_icon_cap_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_move_foreground(battery_icon_body_);
+    lv_obj_move_foreground(battery_icon_cap_);
+    if (level == 4) {
+        lv_label_set_text(battery_label_, "低电量");
+        lv_obj_remove_flag(battery_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(battery_label_);
+    } else {
+        lv_obj_add_flag(battery_label_, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (level == 5) {
+        lv_label_set_text(battery_critical_label_, "严重低电量");
+        lv_obj_remove_flag(battery_critical_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(battery_critical_label_);
+    } else {
+        lv_obj_add_flag(battery_critical_label_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+void DogOledDisplay::ShowBatteryNotice(bool severe, float voltage, int percent) {
+    const uint32_t generation = ++battery_notice_generation_;
+    {
+        DisplayLockGuard lock(this);
+        if (battery_notice_label_ == nullptr) {
+            battery_notice_label_ = lv_label_create(lv_screen_active());
+            lv_obj_set_style_text_font(battery_notice_label_, &lv_font_montserrat_14, 0);
+            lv_obj_set_style_text_align(battery_notice_label_, LV_TEXT_ALIGN_CENTER, 0);
+            lv_obj_set_style_bg_color(battery_notice_label_, lv_color_black(), 0);
+            lv_obj_set_style_bg_opa(battery_notice_label_, LV_OPA_COVER, 0);
+            lv_obj_set_style_text_color(battery_notice_label_, lv_color_white(), 0);
+            lv_obj_set_style_pad_all(battery_notice_label_, 2, 0);
+        }
+        char text[96];
+        if (severe) {
+            snprintf(text, sizeof(text), "严重低电量\n已关闭灯光和动作\n%.2fV  %d%%", voltage, percent);
+            lv_obj_align(battery_notice_label_, LV_ALIGN_CENTER, 0, 0);
+        } else {
+            snprintf(text, sizeof(text), "低电量，请尽快充电\n%.2fV  %d%%", voltage, percent);
+            lv_obj_align(battery_notice_label_, LV_ALIGN_BOTTOM_MID, 0, -1);
+        }
+        lv_label_set_text(battery_notice_label_, text);
+        lv_obj_remove_flag(battery_notice_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(battery_notice_label_);
+    }
+    const int duration_ms = severe ? 5000 : 2000;
+    struct NoticeContext { DogOledDisplay* display; uint32_t generation; int duration_ms; };
+    auto* context = new NoticeContext{this, generation, duration_ms};
+    if (xTaskCreate([](void* arg) {
+            auto* context = static_cast<NoticeContext*>(arg);
+            vTaskDelay(pdMS_TO_TICKS(context->duration_ms));
+            if (context->generation == context->display->battery_notice_generation_) {
+                DisplayLockGuard lock(context->display);
+                if (context->display->battery_notice_label_ != nullptr) {
+                    lv_obj_add_flag(context->display->battery_notice_label_, LV_OBJ_FLAG_HIDDEN);
+                }
+            }
+            delete context;
+            vTaskDelete(nullptr);
+        }, "battery_notice", 2560, context, 3, nullptr) != pdPASS) {
+        delete context;
+    }
+}
+
 int DogOledDisplay::BresenhamLine(int x1, int y1, int x2, int y2, int ret[]) {
     int dx = abs(x2 - x1);
     int dy = abs(y2 - y1);

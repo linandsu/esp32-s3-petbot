@@ -35,9 +35,9 @@ private:
     led_strip_handle_t strip_2_ = nullptr;
     static RgbLampController* instance_;
     int led_num_;
-    uint8_t red_ = 0, green_ = 0, blue_ = 0, brightness_ = 255;
+    uint8_t red_ = 255, green_ = 255, blue_ = 255, brightness_ = 180;
     std::string effect_ = "off";
-    uint8_t saved_red_ = 255, saved_green_ = 255, saved_blue_ = 255, saved_brightness_ = 255;
+    uint8_t saved_red_ = 255, saved_green_ = 255, saved_blue_ = 255, saved_brightness_ = 180;
     std::string saved_effect_ = "color";
 
     TaskHandle_t effect_task_handle_ = nullptr;

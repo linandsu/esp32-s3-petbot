@@ -20,6 +20,7 @@ public:
 private:
     httpd_handle_t server_ = nullptr;
     esp_timer_handle_t status_timer_ = nullptr;
+    bool restart_pending_ = false;
     bool mdns_started_ = false;
     std::set<int> clients_;
 
@@ -30,8 +31,10 @@ private:
 
     static esp_err_t RootHandler(httpd_req_t* req);
     static esp_err_t StatusHandler(httpd_req_t* req);
+    static esp_err_t PinyinHandler(httpd_req_t* req);
     static esp_err_t WsHandler(httpd_req_t* req);
     static void StatusTimerCallback(void* arg);
+    static void RestartTask(void* arg);
     void HandleCommand(httpd_req_t* req, const char* payload, size_t len);
     std::string BuildStatusJson() const;
     void SendWs(int fd, const std::string& payload);

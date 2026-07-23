@@ -882,6 +882,9 @@ else()
     )
 endif()
 list(APPEND SOURCES ${BOARD_SOURCES})
+if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
+    list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/bread-compact-wifi)
+endif()
 
 # Select one audio engine for each chip family
 if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4)
@@ -1050,7 +1053,9 @@ if(CONFIG_BOARD_TYPE_ESP_VOCAT AND IDF_VERSION_MAJOR LESS 6)
     )
 endif()
 idf_component_register(SRCS ${SOURCES}
-                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS} "boards/bread-compact-wifi/web_control.html"
+                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
+                        "boards/bread-compact-wifi/web_control.html"
+                        "boards/bread-compact-wifi/pinyin-pro.min.js"
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     PRIV_REQUIRES
@@ -1237,6 +1242,27 @@ function(build_default_assets_bin)
 
     list(APPEND BUILD_ARGS "--esp_sr_model_path" "${ESP_SR_MODEL_PATH}")
     list(APPEND BUILD_ARGS "--noto_fonts_path" "${NOTO_FONTS_PATH}")
+
+    if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
+        set(DOG_WAKENET_MODELS
+            "wn9_nihaoxiaozhi_tts"
+            "wn9_xiaoaitongxue"
+            "wn9_hai1xiao3ou1_tts3"
+            "wn9_ni3hao3xiao3rui4_tts3"
+        )
+        foreach(MODEL_NAME IN LISTS DOG_WAKENET_MODELS)
+            list(APPEND BUILD_ARGS "--extra_wakenet_model" "${MODEL_NAME}")
+            file(GLOB MODEL_FILES "${ESP_SR_MODEL_PATH}/wakenet_model/${MODEL_NAME}/*")
+            list(APPEND DEFAULT_ASSETS_DEPENDENCIES ${MODEL_FILES})
+        endforeach()
+        list(APPEND BUILD_ARGS "--extra_multinet_model" "mn7_cn")
+        list(APPEND BUILD_ARGS "--extra_multinet_model" "fst")
+        file(GLOB_RECURSE DOG_MULTINET_FILES
+            "${ESP_SR_MODEL_PATH}/multinet_model/mn7_cn/*"
+            "${ESP_SR_MODEL_PATH}/multinet_model/fst/*"
+        )
+        list(APPEND DEFAULT_ASSETS_DEPENDENCIES ${DOG_MULTINET_FILES})
+    endif()
 
     # Create custom command to build assets
     add_custom_command(

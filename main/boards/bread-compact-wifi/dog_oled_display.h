@@ -29,6 +29,8 @@ public:
     virtual void ShowLockScreen() override;
     virtual void ShowControlUrl(const char* url, int duration_ms = 15000) override;
     virtual void SetEmotion(const char* emotion) override;
+    void UpdateBatteryIndicator(int level, float voltage, int percent);
+    void ShowBatteryNotice(bool severe, float voltage, int percent);
 
 private:
     enum class Mode {
@@ -93,6 +95,14 @@ private:
     lv_obj_t* time_label_ = nullptr;
     lv_obj_t* date_label_ = nullptr;
     lv_obj_t* control_url_label_ = nullptr;
+    lv_obj_t* battery_label_ = nullptr;
+    lv_obj_t* battery_icon_body_ = nullptr;
+    lv_obj_t* battery_icon_fill_ = nullptr;
+    lv_obj_t* battery_icon_cap_ = nullptr;
+    lv_obj_t* battery_critical_label_ = nullptr;
+    lv_obj_t* battery_notice_label_ = nullptr;
+    lv_obj_t* battery_protect_panel_ = nullptr;
+    uint32_t battery_notice_generation_ = 0;
 
     Mode mode_ = Mode::kNone;
     EmotionShape emotion_shape_ = EmotionShape::kNeutral;
