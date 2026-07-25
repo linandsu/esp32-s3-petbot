@@ -151,8 +151,7 @@ std::string WebControlServer::GetControlUrl() const {
     if (netif == nullptr || esp_netif_get_ip_info(netif, &ip_info) != ESP_OK) return "";
     char ip[16];
     esp_ip4addr_ntoa(&ip_info.ip, ip, sizeof(ip));
-    // Prefer HTTPS so phone browsers can unlock motion sensors.
-    if (ssl_server_ != nullptr) return std::string("https://") + ip + "/";
+    // Default control page is HTTP; HTTPS remains available for gyro on port 443.
     return std::string("http://") + ip + "/";
 }
 

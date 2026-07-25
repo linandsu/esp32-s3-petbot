@@ -313,7 +313,9 @@ void DogController::RegisterMcpTools() {
 
     mcp_server.AddTool(
         "self.web_control.get_url",
-        "获取小狗当前真实可访问的局域网网页控制网址。用户询问网页控制地址、控制页面网址、手机如何打开控制台时，必须调用此工具。工具会同时把网址显示在 OLED 屏幕上。",
+        "获取小狗当前真实可访问的局域网网页控制网址（HTTP，形如 http://192.168.x.x/）。"
+        "用户询问网页控制地址、控制页面网址、手机如何打开控制台时，必须调用此工具。"
+        "工具会同时把网址显示在 OLED 屏幕上。不要改成 HTTPS。",
         PropertyList(),
         [](const PropertyList&) -> ReturnValue {
             const auto url = WebControlServer::GetInstance().GetControlUrl();
@@ -323,7 +325,8 @@ void DogController::RegisterMcpTools() {
             if (auto* display = Board::GetInstance().GetDisplay()) {
                 display->ShowControlUrl(url.c_str(), 15000);
             }
-            return "小狗的网页控制网址是 " + url + "，请让手机连接同一个 Wi-Fi 后打开这个地址。网址也已经显示在屏幕上。";
+            return "小狗的网页控制网址是 " + url +
+                   "（请用手机浏览器打开 HTTP 地址，同一 Wi-Fi）。网址也已经显示在屏幕上。";
         });
 
     mcp_server.AddTool(
