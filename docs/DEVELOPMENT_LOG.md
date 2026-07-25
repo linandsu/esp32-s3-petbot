@@ -542,7 +542,37 @@
 
 ---
 
+## 2026-07-25：智能家居 MQTT（小狗端）+ 告警屏显/播报
+
+### 完成功能
+
+- 新增 `SmartHomeClient`：连接本地 Broker `192.168.3.88:1884`，订阅 status/ack/event/display/feedback，缓存四设备状态，控制风扇 `outlet_01` / 房间灯 `outlet_02`，发布 `dog_robot/event` SOS。
+- MCP：`self.smarthome.get_status` / `set_fan` / `set_room_light` / `sos`；笼统「开灯」走小狗 RGB，须说「房间的灯」才控智能灯。
+- 告警：event dog/app →「您已成功发送告警」+ `alert_sent.ogg`；gas → 警告+请处理 + `gas_warning.ogg`；feedback `*_ack` →「子女正在赶回来」+ `children_coming.ogg`。
+- 网页新增「智能家居」Tab（风扇/房间灯/SOS/状态）；WiFi 连接时 Start/Stop。
+- 文档：`docs/MQTT_SMART_HOME.md`。
+
+### 遇到的问题
+
+- CMake `file(GLOB)` 新增源文件需 `idf.py reconfigure` 才会编入。
+- `export.ps1` 在中文用户路径下可能失败；改用手动 PATH + IDF Python 调用 `idf.py`。
+
+### 解决办法
+
+- 重新 configure 后编译通过；烧录 COM12。
+
+### 验证结果
+
+- 编译结果：成功（含 `smart_home_client.cc`）
+- 烧录结果：COM12（见下方实机确认）
+- 实机结果：待联调 Broker / mosquitto_pub 模拟告警
+
+### 未解决问题
+
+- 需在有 Pi Broker 的局域网联调：开灯/风扇 cmd、SOS、event/feedback 播报。
+
 ## 后续开发记录模板
+
 
 复制以下结构追加新功能记录：
 

@@ -9,6 +9,7 @@
 #include "rgb_lamp_controller.h"
 #include "battery_monitor.h"
 #include "wake_word_config.h"
+#include "smart_home_client.h"
 
 #include <cJSON.h>
 #include <esp_https_server.h>
@@ -252,6 +253,12 @@ std::string WebControlServer::BuildStatusJson() const {
         cJSON* battery_json = cJSON_Parse(battery->GetStatusJson().c_str());
         cJSON_AddItemToObject(root, "battery", battery_json == nullptr ? cJSON_CreateObject() : battery_json);
     }
+    if (auto* smarthome = SmartHomeClient::GetInstance()) {
+        cJSON* sh_json = cJSON_Parse(smarthome->GetStatusJson().c_str());
+        cJSON_AddItemToObject(root, "smarthome", sh_json == nullptr ? cJSON_CreateObject() : sh_json);
+    } else {
+        cJSON_AddItemToObject(root, "smarthome", cJSON_CreateObject());
+    }
     const auto wake_word = WakeWordConfig::GetInstance().GetState();
     cJSON* wake_json = cJSON_AddObjectToObject(root, "wake_word");
     cJSON_AddStringToObject(wake_json, "mode", WakeWordConfig::ModeName(wake_word.mode).c_str());
@@ -436,6 +443,21 @@ void WebControlServer::HandleCommand(httpd_req_t* req, const char* payload, size
                     }
                 }
             }
+        } else if (strcmp(name, "smarthome.set") == 0 && SmartHomeClient::GetInstance() && args) {
+            auto* device = cJSON_GetObjectItem(args, "device");
+            auto* action = cJSON_GetObjectItem(args, "action");
+            if (cJSON_IsString(device) && cJSON_IsString(action)) {
+                ok = SmartHomeClient::GetInstance()->SetOutlet(device->valuestring, action->valuestring);
+            }
+            error = "智能家居控制失败（检查 MQTT 连接与参数）";
+        } else if (strcmp(name, "smarthome.sos") == 0 && SmartHomeClient::GetInstance()) {
+            std::string message;
+            if (args) {
+                auto* msg = cJSON_GetObjectItem(args, "message");
+                if (cJSON_IsString(msg)) message = msg->valuestring;
+            }
+            ok = SmartHomeClient::GetInstance()->SendSos(message);
+            error = "SOS 发送失败（智能家居 MQTT 未连接）";
         }
     }
     if (root != nullptr) cJSON_Delete(root);

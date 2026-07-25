@@ -68,7 +68,7 @@ h1 small{
   background:var(--accent-dim);
 }
 .tabs{
-  display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  display:grid;grid-template-columns:repeat(5,1fr);gap:6px;
   margin-bottom:14px;padding:5px;
   border:1px solid var(--line);border-radius:14px;
   background:rgba(0,0,0,.22);
@@ -294,6 +294,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   <button type="button" data-panel="device">设备</button>
   <button type="button" data-panel="wake">唤醒词</button>
   <button type="button" data-panel="drive">遥控</button>
+  <button type="button" data-panel="smarthome">智能家居</button>
 </nav>
 
 <div class="panel show" id="panel-control">
@@ -348,11 +349,32 @@ input[type=range]{width:100%;accent-color:var(--accent)}
   </div>
 </div>
 
+<div class="panel" id="panel-smarthome">
+  <div class="grid">
+    <section class="bay wide-bay" data-no="08"><h2 class="title"><i></i>智能家居</h2>
+      <div class="status" id="shMqtt">MQTT：未连接</div>
+      <div class="buttons" style="margin-top:12px">
+        <button type="button" data-sh-device="outlet_01" data-sh-action="on">风扇开</button>
+        <button type="button" data-sh-device="outlet_01" data-sh-action="off">风扇关</button>
+        <button type="button" data-sh-device="outlet_01" data-sh-action="toggle">风扇切换</button>
+        <button type="button" data-sh-device="outlet_02" data-sh-action="on">房间灯开</button>
+        <button type="button" data-sh-device="outlet_02" data-sh-action="off">房间灯关</button>
+        <button type="button" data-sh-device="outlet_02" data-sh-action="toggle">房间灯切换</button>
+      </div>
+      <div class="status" id="shDevices" style="margin-top:12px">设备状态读取中……</div>
+      <div class="status" id="shAlert" style="margin-top:10px">最近告警：无</div>
+      <div class="buttons" style="margin-top:14px">
+        <button type="button" class="stop wide" id="shSos">SOS 紧急告警</button>
+      </div>
+    </section>
+  </div>
+</div>
+
 <p class="hint">仅限当前 Wi-Fi 局域网使用 · 本页面未设置密码，同一网络内的设备均可控制</p>
 </main><div class="toast" id="toast"></div>
 <script src="/vendor/pinyin-pro.min.js"></script>
 <script>
-let ws,id=1,lastStatus={},lampEditingUntil=0,lampInFlight=0,pendingLamp={},wakeMode='preset',selectedPreset='wn9_nihaoxiaozhi_tts',wakeRequest=0,wakeDraftDirty=false,wakeThreshold=.63,toastTimer=0,lampDraftDirty=false;
+let ws,id=1,lastStatus={},lampEditingUntil=0,lampInFlight=0,pendingLamp={},wakeMode='preset',selectedPreset='wn9_nihaoxiaozhi_tts',wakeRequest=0,wakeDraftDirty=false,wakeThreshold=.63,toastTimer=0,lampDraftDirty=false,shRequest=0;
 let driveForward=0,driveTurn=0,lastDriveSent={f:null,t:null},driveTimer=0,stickActive=false,gyroOn=false,gyroPerm=false,activePanel='control';
 const $=s=>document.querySelector(s);
 function send(command,args={}){if(!ws||ws.readyState!==1)return null;const request=id++;ws.send(JSON.stringify({id:request,command,args}));return request}
@@ -401,15 +423,30 @@ function switchWakeTab(mode,dirty=false){wakeMode=mode;if(dirty)wakeDraftDirty=t
 function pinyinFor(text){if(!window.pinyinPro||!text)return '';const value=window.pinyinPro.pinyin(text,{toneType:'none',type:'array'});return Array.isArray(value)?value.join(' '):String(value).replace(/\s+/g,' ').trim()}
 function validateWake(){const note=$('#wakeValidation'),save=$('#saveWake'),b=thresholdBounds();let good=wakeThreshold>=b.min&&wakeThreshold<=b.max,msg='';if(!good)msg=`检测阈值需在 ${b.min.toFixed(2)} 到 ${b.max.toFixed(2)} 之间`;else if(wakeMode==='preset'){good=!!selectedPreset;msg=good?'保存后设备会自动重启，约十几秒恢复连接':'请选择一个预设唤醒词'}else{const text=$('#wakeText').value.trim(),py=$('#wakePinyin').value.trim().toLowerCase().replace(/\s+/g,' ');const chars=[...text];const tokens=py?py.split(' '):[];if(!/^[\u3400-\u9fff]{2,8}$/.test(text)){good=false;msg='请输入 2 到 8 个纯中文汉字'}else if(tokens.length!==chars.length||tokens.some(x=>!/^[a-z]{1,6}$/.test(x))){good=false;msg='每个汉字需要一个拼音，使用小写字母并用空格分隔'}else msg='拼音会决定实际识别读音，多音字请在此处修正'}note.textContent=msg;note.className='validation '+(good?'good':'bad');save.disabled=!good||wakeRequest!==0;return good}
 function currentLampDraft(){const x=$('#color').value;return{r:parseInt(x.slice(1,3),16),g:parseInt(x.slice(3,5),16),b:parseInt(x.slice(5,7),16),brightness:+$('#bright').value}}
-function render(s){lastStatus=s;$('#conn').className='conn on';$('#conn').textContent='● 已连接';const n=s.network||{},l=s.lamp||{},a=s.audio_speaker||{},w=s.wake_word||{},bt=s.battery||{};const battery=bt.voltage!=null?`\n电池：${bt.voltage.toFixed(2)}V（${bt.percent}% · ${bt.level||'-'}）`:'';const action=(s.dog_action||'-')+(s.dog_action_running?'（执行中）':'');$('#status').textContent=`状态：${s.device_state||'-'}\n动作：${action}\n网络：${n.ssid||'-'}（${n.signal||'-'}）\n灯效：${l.effect||'-'}${battery}\n地址：${s.control_url||location.href}`;if(a.volume!=null&&document.activeElement!==$('#volume')){$('#volume').value=a.volume;$('#vnum').textContent=a.volume}if(Date.now()>lampEditingUntil){if(l.r!=null){$('#color').value=rgbHex(l);$('#colorText').textContent=rgbHex(l)+(lampDraftDirty?' · 待应用':' · 实时')}if(l.brightness!=null){$('#bright').value=l.brightness;$('#bnum').textContent=l.brightness}}document.querySelectorAll('#effects [data-e]').forEach(b=>b.classList.toggle('active',b.dataset.e===l.effect));const rainbow=l.effect==='rainbow';$('#color').disabled=rainbow;$('#colorWell').classList.toggle('disabled',rainbow);if(w.display_text&&!wakeDraftDirty){$('#wakeNow').textContent=w.display_text;$('#wakeState').textContent=(w.mode==='custom'?'自定义':'预设')+(w.fallback?' · 已安全回退':' · 已生效');if(w.fallback&&w.fallback_reason)toast('唤醒词已回退：'+w.fallback_reason,true,5000);if(wakeRequest===0){selectedPreset=w.preset_model||selectedPreset;switchWakeTab(w.mode==='custom'?'custom':'preset');document.querySelectorAll('#presets button').forEach(b=>b.classList.toggle('active',b.dataset.model===selectedPreset));$('#wakeText').value=w.mode==='custom'?w.display_text:'';$('#wakePinyin').value=w.mode==='custom'?w.command_pinyin:'';}}}
+function renderSmartHome(s){
+  const sh=s.smarthome||{};
+  const mqttEl=$('#shMqtt'),devEl=$('#shDevices'),alertEl=$('#shAlert');
+  if(!mqttEl||!devEl||!alertEl)return;
+  mqttEl.textContent=sh.connected?'MQTT：已连接 '+(sh.broker||''):'MQTT：未连接 '+(sh.broker||'');
+  const fan=sh.outlet_01||{},light=sh.outlet_02||{},gas=sh.gas_alarm_01||{},th=sh.temp_humi_01||{};
+  const sock=d=>d.socket_1||d.state||'-';
+  const online=d=>d.seen?(d.online?'在线':'离线'):'无数据';
+  devEl.textContent=`风扇：${sock(fan)}（${online(fan)}）\n房间灯：${sock(light)}（${online(light)}）\n燃气：${gas.gas||'-'} / ${gas.gas_value||'-'}（${online(gas)}）\n温湿度：${th.temperature||'-'}℃ / ${th.humidity||'-'}%（${online(th)}）`;
+  const ev=sh.last_event||{},fb=sh.last_feedback||{};
+  const parts=[];
+  if(ev.type)parts.push(`事件 ${ev.type}${ev.message?('：'+ev.message):''}`);
+  if(fb.type)parts.push(`回传 ${fb.type}${fb.message?('：'+fb.message):''}`);
+  alertEl.textContent=parts.length?('最近告警：'+parts.join(' · ')):'最近告警：无';
+}
+function render(s){lastStatus=s;$('#conn').className='conn on';$('#conn').textContent='● 已连接';const n=s.network||{},l=s.lamp||{},a=s.audio_speaker||{},w=s.wake_word||{},bt=s.battery||{};const battery=bt.voltage!=null?`\n电池：${bt.voltage.toFixed(2)}V（${bt.percent}% · ${bt.level||'-'}）`:'';const action=(s.dog_action||'-')+(s.dog_action_running?'（执行中）':'');$('#status').textContent=`状态：${s.device_state||'-'}\n动作：${action}\n网络：${n.ssid||'-'}（${n.signal||'-'}）\n灯效：${l.effect||'-'}${battery}\n地址：${s.control_url||location.href}`;if(a.volume!=null&&document.activeElement!==$('#volume')){$('#volume').value=a.volume;$('#vnum').textContent=a.volume}if(Date.now()>lampEditingUntil){if(l.r!=null){$('#color').value=rgbHex(l);$('#colorText').textContent=rgbHex(l)+(lampDraftDirty?' · 待应用':' · 实时')}if(l.brightness!=null){$('#bright').value=l.brightness;$('#bnum').textContent=l.brightness}}document.querySelectorAll('#effects [data-e]').forEach(b=>b.classList.toggle('active',b.dataset.e===l.effect));const rainbow=l.effect==='rainbow';$('#color').disabled=rainbow;$('#colorWell').classList.toggle('disabled',rainbow);if(w.display_text&&!wakeDraftDirty){$('#wakeNow').textContent=w.display_text;$('#wakeState').textContent=(w.mode==='custom'?'自定义':'预设')+(w.fallback?' · 已安全回退':' · 已生效');if(w.fallback&&w.fallback_reason)toast('唤醒词已回退：'+w.fallback_reason,true,5000);if(wakeRequest===0){selectedPreset=w.preset_model||selectedPreset;switchWakeTab(w.mode==='custom'?'custom':'preset');document.querySelectorAll('#presets button').forEach(b=>b.classList.toggle('active',b.dataset.model===selectedPreset));$('#wakeText').value=w.mode==='custom'?w.display_text:'';$('#wakePinyin').value=w.mode==='custom'?w.command_pinyin:'';}}renderSmartHome(s)}
 function syncRemoteState(s){const w=s.wake_word||{},l=s.lamp||{};if(w.display_text&&wakeRequest===0&&!wakeDraftDirty&&Number.isFinite(+w.threshold)){wakeThreshold=+w.threshold;syncWakeThreshold(false)}if(!lampDraftDirty&&l.r!=null){$('#colorText').textContent=rgbHex(l)+' · 待应用'}const rainbow=l.effect==='rainbow';$('#effectNote').textContent=rainbow?'彩虹灯自动变色，颜色设置会保留给下次非彩虹灯效':'选择颜色和亮度不会点亮；点击灯效后才会按当前设置亮起'}
 function flushLamp(){if(lampInFlight||!Object.keys(pendingLamp).length||!ws||ws.readyState!==1)return;const args=pendingLamp;pendingLamp={};lampInFlight=id++;ws.send(JSON.stringify({id:lampInFlight,command:'lamp.update',args}))}
 function queueLamp(values){Object.assign(pendingLamp,values);flushLamp()}
-function connect(){const proto=location.protocol==='https:'?'wss':'ws';ws=new WebSocket(`${proto}://${location.host}/api/ws`);ws.onopen=flushLamp;ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state'){render(m.payload);syncRemoteState(m.payload)}if(m.type==='result'){if(m.id===lampInFlight){lampInFlight=0;flushLamp()}if(m.id===wakeRequest){wakeRequest=0;if(m.ok&&m.restart_required){wakeDraftDirty=false;let left=Math.ceil((m.restart_in_ms||3000)/1000);toast(`设置已保存，${left} 秒后重启…`,false,5000);const timer=setInterval(()=>{left--;if(left>0)toast(`设置已保存，${left} 秒后重启…`,false,5000);else clearInterval(timer)},1000)}else if(!m.ok)toast(m.error||'唤醒词保存失败',true,5000);validateWake()}}};ws.onclose=()=>{lampInFlight=0;wakeRequest=0;validateWake();stopDrive(true);$('#conn').className='conn';$('#conn').textContent='● 连接断开，正在重连';setTimeout(connect,1500)}}
+function connect(){const proto=location.protocol==='https:'?'wss':'ws';ws=new WebSocket(`${proto}://${location.host}/api/ws`);ws.onopen=flushLamp;ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state'){render(m.payload);syncRemoteState(m.payload)}if(m.type==='result'){if(m.id===lampInFlight){lampInFlight=0;flushLamp()}if(m.id===wakeRequest){wakeRequest=0;if(m.ok&&m.restart_required){wakeDraftDirty=false;let left=Math.ceil((m.restart_in_ms||3000)/1000);toast(`设置已保存，${left} 秒后重启…`,false,5000);const timer=setInterval(()=>{left--;if(left>0)toast(`设置已保存，${left} 秒后重启…`,false,5000);else clearInterval(timer)},1000)}else if(!m.ok)toast(m.error||'唤醒词保存失败',true,5000);validateWake()}if(m.id===shRequest){shRequest=0;if(m.ok)toast('指令已发送');else toast(m.error||'智能家居指令失败',true,4000)}}};ws.onclose=()=>{lampInFlight=0;wakeRequest=0;shRequest=0;validateWake();stopDrive(true);$('#conn').className='conn';$('#conn').textContent='● 连接断开，正在重连';setTimeout(connect,1500)}}
 connect();
 document.querySelectorAll('#mainTabs button').forEach(b=>b.onclick=()=>switchPanel(b.dataset.panel));
 const hash=location.hash.replace('#','');
-if(hash==='device'||hash==='wake'||hash==='control'||hash==='drive')switchPanel(hash);
+if(hash==='device'||hash==='wake'||hash==='control'||hash==='drive'||hash==='smarthome')switchPanel(hash);
 $('#actions').onclick=e=>e.target.dataset.a&&send('dog.action',{action:e.target.dataset.a});
 $('#emotions').onclick=e=>e.target.dataset.e&&send('emotion.set',{emotion:e.target.dataset.e});
 $('#effects').onclick=e=>{const effect=e.target.dataset.e;if(!effect)return;if(effect==='off'){lampDraftDirty=false;lampEditingUntil=0;send('lamp.effect',{effect:'off'});return}const lamp=currentLampDraft();lampDraftDirty=false;lampEditingUntil=0;send('lamp.configure',{effect,...lamp})};
@@ -427,6 +464,22 @@ $('#wakePinyin').oninput=()=>{wakeDraftDirty=true;validateWake()};
 $('#wakeThreshold').oninput=e=>{wakeDraftDirty=true;wakeThreshold=+e.target.value/100;syncWakeThreshold(false);validateWake()};
 $('#saveWake').onclick=()=>{if(!validateWake()||wakeRequest)return;const args=wakeMode==='preset'?{mode:'preset',preset_model:selectedPreset,threshold:wakeThreshold}:{mode:'custom',display_text:$('#wakeText').value.trim(),command_pinyin:$('#wakePinyin').value.trim().toLowerCase().replace(/\s+/g,' '),threshold:wakeThreshold};wakeRequest=send('wake_word.set',args);if(wakeRequest===null){toast('控制台尚未连接，未发送保存请求',true,5000);wakeRequest=0;validateWake();return}validateWake();toast('正在校验并保存唤醒词…')};
 syncWakeThreshold(false);validateWake();
+
+const shPanel=$('#panel-smarthome');
+if(shPanel){
+  shPanel.addEventListener('click',e=>{
+    const btn=e.target.closest('[data-sh-device]');
+    if(!btn)return;
+    shRequest=send('smarthome.set',{device:btn.dataset.shDevice,action:btn.dataset.shAction});
+    if(shRequest===null){toast('控制台尚未连接',true);shRequest=0}
+  });
+}
+const sosBtn=$('#shSos');
+if(sosBtn)sosBtn.onclick=()=>{
+  if(!confirm('确认发送紧急告警给子女？'))return;
+  shRequest=send('smarthome.sos',{message:'网页发起紧急告警'});
+  if(shRequest===null){toast('控制台尚未连接',true);shRequest=0}
+};
 
 (function initDrivePad(){
   const stick=$('#stick'),knob=$('#stickKnob');

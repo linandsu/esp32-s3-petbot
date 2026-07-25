@@ -310,13 +310,21 @@ void RgbLampController::StartEffect(Effect effect) {
 void RgbLampController::RegisterMcpTools() {
     auto& mcp_server = McpServer::GetInstance();
 
-    mcp_server.AddTool("self.lamp.turn_on", "打开小狗身上的 RGB 灯带，默认显示白色常亮灯。", PropertyList(),
+    mcp_server.AddTool(
+        "self.lamp.turn_on",
+        "打开小狗身上的 RGB 灯带，默认显示白色常亮灯。"
+        "用户说「开灯」「关灯」且未提「房间」时用本工具；不要调用智能家居房间灯工具。",
+        PropertyList(),
         [this](const PropertyList&) -> ReturnValue {
             SetColor(255, 255, 255);
             return true;
         });
 
-    mcp_server.AddTool("self.lamp.turn_off", "关闭小狗身上的 RGB 灯带和当前灯效。", PropertyList(),
+    mcp_server.AddTool(
+        "self.lamp.turn_off",
+        "关闭小狗身上的 RGB 灯带和当前灯效。"
+        "用户说「关灯」且未提「房间」时用本工具。",
+        PropertyList(),
         [this](const PropertyList&) -> ReturnValue {
             TurnOff();
             return true;
@@ -324,7 +332,8 @@ void RgbLampController::RegisterMcpTools() {
 
     mcp_server.AddTool(
         "self.lamp.set",
-        "设置小狗 RGB 灯的颜色、亮度和灯效。用户说“打开黄色呼吸灯”“蓝色流水灯”“粉色霓虹灯”时必须调用此工具。"
+        "设置小狗身上 RGB 灯带的颜色、亮度和灯效。用户说“打开黄色呼吸灯”“蓝色流水灯”“粉色霓虹灯”或笼统「开灯」时调用此工具。"
+        "不要用于控制家里的房间灯；房间灯请用 self.smarthome.set_room_light。"
         "effect 可选：color（常亮）、breathe（呼吸）、flash（闪烁）、flow（流水）、neon（霓虹）、rainbow（彩虹）、off（关闭）。"
         "把用户说的颜色换算为 RGB；rainbow 会忽略 RGB。brightness 为 0 到 255。",
         PropertyList({

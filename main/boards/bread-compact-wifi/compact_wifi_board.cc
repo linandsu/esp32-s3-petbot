@@ -12,6 +12,7 @@
 #include "dog_controller.h"
 #include "rgb_lamp_controller.h"
 #include "battery_monitor.h"
+#include "smart_home_client.h"
 
 #include <esp_log.h>
 #include <driver/i2c_master.h>
@@ -190,12 +191,13 @@ private:
         });
     }
 
-    // 物联网初始化：小狗动作 + RGB 灯带，均以 MCP 工具的形式对外提供控制能力
+    // 物联网初始化：小狗动作 + RGB 灯带 + 智能家居 MQTT，均以 MCP 工具对外提供
     void InitializeTools() {
         static DogController dog_controller(DOG_SERVO_GPIO_1, DOG_SERVO_GPIO_2, DOG_SERVO_GPIO_3,
                                             DOG_SERVO_GPIO_4, DOG_SERVO_GPIO_TAIL);
         static RgbLampController lamp_controller(LAMP_STRIP_GPIO_1, LAMP_STRIP_GPIO_2, LAMP_STRIP_LED_NUM);
         static BatteryMonitor battery_monitor;
+        static SmartHomeClient smart_home_client;
     }
 
 public:

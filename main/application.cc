@@ -12,6 +12,7 @@
 #include "websocket_protocol.h"
 #if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
 #include "boards/bread-compact-wifi/web_control_server.h"
+#include "boards/bread-compact-wifi/smart_home_client.h"
 #endif
 
 #include <driver/gpio.h>
@@ -132,6 +133,9 @@ void Application::Initialize() {
                     const auto url = WebControlServer::GetInstance().GetControlUrl();
                     if (!url.empty()) display->ShowNotification(url, 10000);
                 }
+                if (SmartHomeClient::GetInstance() != nullptr) {
+                    SmartHomeClient::GetInstance()->Start();
+                }
 #endif
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
                 break;
@@ -139,6 +143,9 @@ void Application::Initialize() {
             case NetworkEvent::Disconnected:
 #if CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI
                 WebControlServer::GetInstance().Stop();
+                if (SmartHomeClient::GetInstance() != nullptr) {
+                    SmartHomeClient::GetInstance()->Stop();
+                }
 #endif
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_DISCONNECTED);
                 break;
