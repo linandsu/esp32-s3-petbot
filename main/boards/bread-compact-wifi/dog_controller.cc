@@ -18,11 +18,12 @@
 
 DogController* DogController::instance_ = nullptr;
 
-DogController::DogController(gpio_num_t servo_io_1, gpio_num_t servo_io_2, gpio_num_t servo_io_3, gpio_num_t servo_io_4) {
+DogController::DogController(gpio_num_t servo_io_1, gpio_num_t servo_io_2, gpio_num_t servo_io_3,
+                             gpio_num_t servo_io_4, gpio_num_t servo_io_tail) {
     instance_ = this;
     SntpClock::EnsureStarted();
 
-    dog_.InitializeDog(servo_io_1, servo_io_2, servo_io_3, servo_io_4);
+    dog_.InitializeDog(servo_io_1, servo_io_2, servo_io_3, servo_io_4, servo_io_tail);
     dog_.RequestAction(kActionStateSleep);
 
     esp_timer_create_args_t lock_timer_args = {
@@ -32,6 +33,14 @@ DogController::DogController(gpio_num_t servo_io_1, gpio_num_t servo_io_2, gpio_
         .name = "dog_lock",
     };
     ESP_ERROR_CHECK(esp_timer_create(&lock_timer_args, &lock_screen_timer_));
+
+    esp_timer_create_args_t drive_watchdog_args = {
+        .callback = &DogController::OnDriveWatchdog,
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "dog_drive_wd",
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&drive_watchdog_args, &drive_watchdog_timer_));
 
     RegisterStateChangeListener();
     RegisterMcpTools();
@@ -50,12 +59,68 @@ bool DogController::ExecuteAction(const std::string& action) {
     else if (action == "turn_left") dog_.RequestAction(kActionStateTurnLeft);
     else if (action == "turn_right") dog_.RequestAction(kActionStateTurnRight);
     else if (action == "wave") dog_.RequestAction(kActionStateWave);
+    else if (action == "wag_tail" || action == "wag") dog_.RequestAction(kActionStateWagTail);
     else if (action == "stop") dog_.RequestAction(kActionStateStop);
     else return false;
 
-    current_action_ = action;
+    current_action_ = action == "stop" ? "stand" : (action == "wag" ? "wag_tail" : action);
     if (action != "stop" && BatteryMonitor::GetInstance()) BatteryMonitor::GetInstance()->HoldLevelUpdates(6000);
+    StopDriveWatchdog();
     return true;
+}
+
+bool DogController::ExecuteDrive(float forward, float turn) {
+    const bool moving = (forward > 0.12f || forward < -0.12f || turn > 0.12f || turn < -0.12f);
+    if (moving && BatteryMonitor::GetInstance() && BatteryMonitor::GetInstance()->IsHighLoadBlocked()) {
+        ESP_LOGW(TAG, "Drive blocked by low battery");
+        return false;
+    }
+    dog_.SetDrive(forward, turn);
+    if (moving) {
+        current_action_ = "drive";
+        ArmDriveWatchdog();
+        if (BatteryMonitor::GetInstance()) BatteryMonitor::GetInstance()->HoldLevelUpdates(2000);
+    } else {
+        StopDriveWatchdog();
+        if (!dog_.IsDriving()) current_action_ = "stand";
+    }
+    return true;
+}
+
+void DogController::ArmDriveWatchdog() {
+    if (!drive_watchdog_timer_) return;
+    esp_timer_stop(drive_watchdog_timer_);
+    // Frontend streams ~20Hz; stop if packets pause (tab switch / WS drop).
+    ESP_ERROR_CHECK(esp_timer_start_once(drive_watchdog_timer_, 350 * 1000));
+}
+
+void DogController::StopDriveWatchdog() {
+    if (drive_watchdog_timer_) esp_timer_stop(drive_watchdog_timer_);
+}
+
+void DogController::OnDriveWatchdog(void* arg) {
+    auto* self = static_cast<DogController*>(arg);
+    ESP_LOGW(TAG, "Drive watchdog: stopping");
+    self->dog_.SetDrive(0.f, 0.f);
+    if (!self->dog_.IsDriving()) self->current_action_ = "stand";
+}
+
+std::string DogController::GetCurrentAction() const {
+    switch (dog_.GetActionState()) {
+        case kActionStateWalk: return "walk";
+        case kActionStateWalkBack: return "walk_back";
+        case kActionStateStand: return "stand";
+        case kActionStateSitdown: return "sitdown";
+        case kActionStateSleep: return "sleep";
+        case kActionStateTurnLeft: return "turn_left";
+        case kActionStateTurnRight: return "turn_right";
+        case kActionStateWave: return "wave";
+        case kActionStateWagTail: return "wag_tail";
+        case kActionStateStop: return "stand";
+        case kActionStateGoIdle: return "sleep";
+        case kActionStateDrive: return "drive";
+    }
+    return current_action_;
 }
 
 namespace {
@@ -265,7 +330,7 @@ void DogController::RegisterMcpTools() {
         "self.dog.action",
         "控制小狗机器人的动作。action 可选值："
         "walk(向前走)、walk_back(向后退)、stand(站立)、sitdown(坐下)、sleep(趴下睡觉)、"
-        "turn_left(左转)、turn_right(右转)、wave(挥手打招呼)、stop(停止当前动作)。",
+        "turn_left(左转)、turn_right(右转)、wave(挥手打招呼)、wag_tail(摇尾巴)、stop(停止当前动作)。",
         PropertyList({
             Property("action", kPropertyTypeString, "stand")
         }),
@@ -274,30 +339,7 @@ void DogController::RegisterMcpTools() {
             ESP_LOGI(TAG, "dog action: %s", action.c_str());
 
             if (!ExecuteAction(action)) {
-                return "Invalid action. Available actions: walk, walk_back, stand, sitdown, sleep, turn_left, turn_right, wave, stop";
-            }
-            return true;
-
-            if (action == "walk") {
-                dog_.RequestAction(kActionStateWalk);
-            } else if (action == "walk_back") {
-                dog_.RequestAction(kActionStateWalkBack);
-            } else if (action == "stand") {
-                dog_.RequestAction(kActionStateStand);
-            } else if (action == "sitdown") {
-                dog_.RequestAction(kActionStateSitdown);
-            } else if (action == "sleep") {
-                dog_.RequestAction(kActionStateSleep);
-            } else if (action == "turn_left") {
-                dog_.RequestAction(kActionStateTurnLeft);
-            } else if (action == "turn_right") {
-                dog_.RequestAction(kActionStateTurnRight);
-            } else if (action == "wave") {
-                dog_.RequestAction(kActionStateWave);
-            } else if (action == "stop") {
-                dog_.RequestAction(kActionStateStop);
-            } else {
-                return "错误：无效的动作名称。可用动作：walk, walk_back, stand, sitdown, sleep, turn_left, turn_right, wave, stop";
+                return "Invalid action. Available actions: walk, walk_back, stand, sitdown, sleep, turn_left, turn_right, wave, wag_tail, stop";
             }
             return true;
         });

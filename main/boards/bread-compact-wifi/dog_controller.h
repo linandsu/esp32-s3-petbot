@@ -12,11 +12,14 @@
 // 待机/唤醒联动（睡觉/站立），替代旧版里 application.cc 中散落的调用。
 class DogController {
 public:
-    DogController(gpio_num_t servo_io_1, gpio_num_t servo_io_2, gpio_num_t servo_io_3, gpio_num_t servo_io_4);
+    DogController(gpio_num_t servo_io_1, gpio_num_t servo_io_2, gpio_num_t servo_io_3,
+                  gpio_num_t servo_io_4, gpio_num_t servo_io_tail);
 
     static DogController* GetInstance() { return instance_; }
     bool ExecuteAction(const std::string& action);
-    const std::string& GetCurrentAction() const { return current_action_; }
+    bool ExecuteDrive(float forward, float turn);
+    std::string GetCurrentAction() const;
+    bool IsActionRunning() const { return dog_.IsActionRunning(); }
 
 private:
     PetDog dog_;
@@ -25,6 +28,7 @@ private:
     bool startup_complete_ = false;
     bool startup_activation_seen_ = false;
     esp_timer_handle_t lock_screen_timer_ = nullptr;
+    esp_timer_handle_t drive_watchdog_timer_ = nullptr;
 
     void RegisterStateChangeListener();
     void RegisterStateChangeListenerLegacy();
@@ -32,6 +36,9 @@ private:
     void StartLockScreenTimer();
     void StopLockScreenTimer();
     static void OnLockScreenTimer(void* arg);
+    static void OnDriveWatchdog(void* arg);
+    void ArmDriveWatchdog();
+    void StopDriveWatchdog();
     void RegisterMcpTools();
 };
 

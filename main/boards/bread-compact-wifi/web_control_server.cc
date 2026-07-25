@@ -11,9 +11,11 @@
 #include "wake_word_config.h"
 
 #include <cJSON.h>
+#include <esp_https_server.h>
 #include <esp_log.h>
 #include <esp_netif.h>
 #include <esp_system.h>
+#include <esp_heap_caps.h>
 #include <mdns.h>
 
 #include <cstdlib>
@@ -25,6 +27,10 @@ extern const uint8_t web_control_html_start[] asm("_binary_web_control_html_star
 extern const uint8_t web_control_html_end[] asm("_binary_web_control_html_end");
 extern const uint8_t pinyin_pro_min_js_start[] asm("_binary_pinyin_pro_min_js_start");
 extern const uint8_t pinyin_pro_min_js_end[] asm("_binary_pinyin_pro_min_js_end");
+extern const uint8_t server_cert_pem_start[] asm("_binary_server_cert_pem_start");
+extern const uint8_t server_cert_pem_end[] asm("_binary_server_cert_pem_end");
+extern const uint8_t server_key_pem_start[] asm("_binary_server_key_pem_start");
+extern const uint8_t server_key_pem_end[] asm("_binary_server_key_pem_end");
 
 WebControlServer& WebControlServer::GetInstance() {
     static WebControlServer instance;
@@ -48,7 +54,7 @@ WebControlServer::~WebControlServer() {
 }
 
 bool WebControlServer::Start() {
-    if (server_ != nullptr) return true;
+    if (server_ != nullptr || ssl_server_ != nullptr) return true;
 
     if (!mdns_started_) {
         if (mdns_init() == ESP_OK) {
@@ -60,6 +66,30 @@ bool WebControlServer::Start() {
         }
     }
 
+    const bool http_ok = StartHttp();
+    const bool https_ok = StartHttps();
+    if (!http_ok && !https_ok) {
+        ESP_LOGE(TAG, "Unable to start local web server");
+        return false;
+    }
+
+    ESP_ERROR_CHECK(esp_timer_start_periodic(status_timer_, 2000000));
+    ESP_LOGI(TAG, "Local control server ready (http=%d https=%d)", (int)http_ok, (int)https_ok);
+    return true;
+}
+
+void WebControlServer::RegisterHandlers(httpd_handle_t server) {
+    httpd_uri_t root = {.uri = "/", .method = HTTP_GET, .handler = RootHandler, .user_ctx = this};
+    httpd_uri_t status = {.uri = "/api/status", .method = HTTP_GET, .handler = StatusHandler, .user_ctx = this};
+    httpd_uri_t pinyin = {.uri = "/vendor/pinyin-pro.min.js", .method = HTTP_GET, .handler = PinyinHandler, .user_ctx = this};
+    httpd_uri_t ws = {.uri = "/api/ws", .method = HTTP_GET, .handler = WsHandler, .user_ctx = this, .is_websocket = true};
+    httpd_register_uri_handler(server, &root);
+    httpd_register_uri_handler(server, &status);
+    httpd_register_uri_handler(server, &pinyin);
+    httpd_register_uri_handler(server, &ws);
+}
+
+bool WebControlServer::StartHttp() {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = 80;
     config.ctrl_port = 32768;
@@ -68,25 +98,45 @@ bool WebControlServer::Start() {
 
     if (httpd_start(&server_, &config) != ESP_OK) {
         server_ = nullptr;
-        ESP_LOGE(TAG, "Unable to start local web server");
+        ESP_LOGW(TAG, "HTTP server failed to start on port 80");
         return false;
     }
+    RegisterHandlers(server_);
+    ESP_LOGI(TAG, "HTTP control server on port 80");
+    return true;
+}
 
-    httpd_uri_t root = {.uri = "/", .method = HTTP_GET, .handler = RootHandler, .user_ctx = this};
-    httpd_uri_t status = {.uri = "/api/status", .method = HTTP_GET, .handler = StatusHandler, .user_ctx = this};
-    httpd_uri_t pinyin = {.uri = "/vendor/pinyin-pro.min.js", .method = HTTP_GET, .handler = PinyinHandler, .user_ctx = this};
-    httpd_uri_t ws = {.uri = "/api/ws", .method = HTTP_GET, .handler = WsHandler, .user_ctx = this, .is_websocket = true};
-    httpd_register_uri_handler(server_, &root);
-    httpd_register_uri_handler(server_, &status);
-    httpd_register_uri_handler(server_, &pinyin);
-    httpd_register_uri_handler(server_, &ws);
-    ESP_ERROR_CHECK(esp_timer_start_periodic(status_timer_, 2000000));
-    ESP_LOGI(TAG, "Local control server started on port 80");
+bool WebControlServer::StartHttps() {
+    httpd_ssl_config_t config = HTTPD_SSL_CONFIG_DEFAULT();
+    // Keep SSL socket count low: each TLS session needs ~40KB internal RAM.
+    config.port_secure = 443;
+    config.transport_mode = HTTPD_SSL_TRANSPORT_SECURE;
+    config.httpd.max_open_sockets = 2;
+    config.httpd.lru_purge_enable = true;
+    config.httpd.stack_size = 12288;
+    config.servercert = server_cert_pem_start;
+    config.servercert_len = server_cert_pem_end - server_cert_pem_start;
+    config.prvtkey_pem = server_key_pem_start;
+    config.prvtkey_len = server_key_pem_end - server_key_pem_start;
+
+    const esp_err_t err = httpd_ssl_start(&ssl_server_, &config);
+    if (err != ESP_OK) {
+        ssl_server_ = nullptr;
+        ESP_LOGW(TAG, "HTTPS server failed on 443: %s (free_heap=%u)",
+                 esp_err_to_name(err), (unsigned)esp_get_free_heap_size());
+        return false;
+    }
+    RegisterHandlers(ssl_server_);
+    ESP_LOGI(TAG, "HTTPS control server on port 443 (self-signed; use Chrome for gyro)");
     return true;
 }
 
 void WebControlServer::Stop() {
     if (status_timer_ != nullptr && esp_timer_is_active(status_timer_)) esp_timer_stop(status_timer_);
+    if (ssl_server_ != nullptr) {
+        httpd_ssl_stop(ssl_server_);
+        ssl_server_ = nullptr;
+    }
     if (server_ != nullptr) {
         httpd_stop(server_);
         server_ = nullptr;
@@ -100,6 +150,8 @@ std::string WebControlServer::GetControlUrl() const {
     if (netif == nullptr || esp_netif_get_ip_info(netif, &ip_info) != ESP_OK) return "";
     char ip[16];
     esp_ip4addr_ntoa(&ip_info.ip, ip, sizeof(ip));
+    // Prefer HTTPS so phone browsers can unlock motion sensors.
+    if (ssl_server_ != nullptr) return std::string("https://") + ip + "/";
     return std::string("http://") + ip + "/";
 }
 
@@ -164,16 +216,17 @@ void WebControlServer::RestartTask(void* arg) {
 }
 
 void WebControlServer::SendWs(int fd, const std::string& payload) {
-    if (server_ == nullptr) return;
     httpd_ws_frame_t frame = {};
     frame.type = HTTPD_WS_TYPE_TEXT;
     frame.payload = reinterpret_cast<uint8_t*>(const_cast<char*>(payload.data()));
     frame.len = payload.size();
-    if (httpd_ws_send_frame_async(server_, fd, &frame) != ESP_OK) clients_.erase(fd);
+    if (server_ != nullptr && httpd_ws_send_frame_async(server_, fd, &frame) == ESP_OK) return;
+    if (ssl_server_ != nullptr && httpd_ws_send_frame_async(ssl_server_, fd, &frame) == ESP_OK) return;
+    clients_.erase(fd);
 }
 
 void WebControlServer::BroadcastStatus() {
-    if (server_ == nullptr || clients_.empty()) return;
+    if ((server_ == nullptr && ssl_server_ == nullptr) || clients_.empty()) return;
     const std::string message = "{\"type\":\"state\",\"payload\":" + BuildStatusJson() + "}";
     const auto clients = clients_;
     for (int fd : clients) SendWs(fd, message);
@@ -186,7 +239,11 @@ std::string WebControlServer::BuildStatusJson() const {
     cJSON_AddStringToObject(root, "listening_mode", Application::GetInstance().GetListeningModeName());
     cJSON_AddBoolToObject(root, "audio_channel_open", Application::GetInstance().IsAudioChannelOpened());
     cJSON_AddBoolToObject(root, "voice_processing", Application::GetInstance().IsVoiceProcessingActive());
-    if (auto* dog = DogController::GetInstance()) cJSON_AddStringToObject(root, "dog_action", dog->GetCurrentAction().c_str());
+    if (auto* dog = DogController::GetInstance()) {
+        const auto action = dog->GetCurrentAction();
+        cJSON_AddStringToObject(root, "dog_action", action.c_str());
+        cJSON_AddBoolToObject(root, "dog_action_running", dog->IsActionRunning());
+    }
     if (auto* lamp = RgbLampController::GetInstance()) {
         cJSON* lamp_json = cJSON_Parse(lamp->GetStatusJson().c_str());
         cJSON_AddItemToObject(root, "lamp", lamp_json == nullptr ? cJSON_CreateObject() : lamp_json);
@@ -231,6 +288,21 @@ void WebControlServer::HandleCommand(httpd_req_t* req, const char* payload, size
             auto* action = cJSON_GetObjectItem(args, "action");
             ok = cJSON_IsString(action) && DogController::GetInstance()->ExecuteAction(action->valuestring);
             error = "unsupported dog action";
+        } else if (strcmp(name, "dog.drive") == 0 && DogController::GetInstance() && args) {
+            // High-frequency stream from joystick/gyro; status broadcast is enough.
+            broadcast_on_success = false;
+            auto* forward_item = cJSON_GetObjectItem(args, "forward");
+            auto* turn_item = cJSON_GetObjectItem(args, "turn");
+            if (cJSON_IsNumber(forward_item) && cJSON_IsNumber(turn_item)) {
+                float forward = static_cast<float>(forward_item->valuedouble);
+                float turn = static_cast<float>(turn_item->valuedouble);
+                if (forward < -1.f) forward = -1.f;
+                if (forward > 1.f) forward = 1.f;
+                if (turn < -1.f) turn = -1.f;
+                if (turn > 1.f) turn = 1.f;
+                ok = DogController::GetInstance()->ExecuteDrive(forward, turn);
+            }
+            error = "invalid drive command or battery protection active";
         } else if (strcmp(name, "lamp.set") == 0 && RgbLampController::GetInstance() && args) {
             auto* r_item = cJSON_GetObjectItem(args, "r");
             auto* g_item = cJSON_GetObjectItem(args, "g");

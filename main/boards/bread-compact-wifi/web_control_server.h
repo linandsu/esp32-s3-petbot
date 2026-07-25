@@ -13,12 +13,13 @@ public:
 
     bool Start();
     void Stop();
-    bool IsRunning() const { return server_ != nullptr; }
+    bool IsRunning() const { return server_ != nullptr || ssl_server_ != nullptr; }
     std::string GetControlUrl() const;
     void BroadcastStatus();
 
 private:
     httpd_handle_t server_ = nullptr;
+    httpd_handle_t ssl_server_ = nullptr;
     esp_timer_handle_t status_timer_ = nullptr;
     bool restart_pending_ = false;
     bool mdns_started_ = false;
@@ -28,6 +29,10 @@ private:
     ~WebControlServer();
     WebControlServer(const WebControlServer&) = delete;
     WebControlServer& operator=(const WebControlServer&) = delete;
+
+    bool StartHttp();
+    bool StartHttps();
+    void RegisterHandlers(httpd_handle_t server);
 
     static esp_err_t RootHandler(httpd_req_t* req);
     static esp_err_t StatusHandler(httpd_req_t* req);

@@ -17,10 +17,6 @@
 #include <driver/i2c_master.h>
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
-#include <esp_random.h>
-
-#include <array>
-
 #ifdef SH1106
 #include <esp_lcd_panel_sh1106.h>
 #endif
@@ -37,6 +33,8 @@ private:
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
+    // Double-click gesture cycle: 0=sitdown, 1=wag_tail, 2=wave
+    int touch_gesture_index_ = 0;
 
     void InitializeDisplayI2c() {
         i2c_master_bus_config_t bus_config = {
@@ -133,25 +131,31 @@ private:
             }
         });
 
-        touch_button_.OnDoubleClick([]() {
+        touch_button_.OnDoubleClick([this]() {
             const auto state = Application::GetInstance().GetDeviceState();
             if (state != kDeviceStateIdle && state != kDeviceStateListening &&
                 state != kDeviceStateSpeaking) {
                 return;
             }
-            static constexpr std::array<const char*, 5> kSafeActions = {
-                "stand", "sitdown", "turn_left", "turn_right", "wave"
-            };
             if (auto* dog = DogController::GetInstance()) {
-                const auto index = esp_random() % kSafeActions.size();
-                dog->ExecuteAction(kSafeActions[index]);
+                // A second double tap while busy is an emergency stop.
+                // Successful gestures cycle: sit down -> wag tail -> wave.
+                if (dog->IsActionRunning()) {
+                    dog->ExecuteAction("stop");
+                    return;
+                }
+                static constexpr const char* kGestures[] = {"sitdown", "wag_tail", "wave"};
+                const char* action = kGestures[touch_gesture_index_ % 3];
+                if (dog->ExecuteAction(action)) {
+                    touch_gesture_index_ = (touch_gesture_index_ + 1) % 3;
+                }
             }
         });
 
         touch_button_.OnLongPress([this]() {
             if (auto* lamp = RgbLampController::GetInstance()) {
                 const bool turned_on = lamp->TogglePower();
-                GetDisplay()->ShowNotification(turned_on ? "LIGHT ON" : "LIGHT OFF", 1500);
+                GetDisplay()->ShowNotification(turned_on ? "灯光已打开" : "灯光已关闭", 1500);
             }
         });
 
@@ -188,7 +192,8 @@ private:
 
     // 物联网初始化：小狗动作 + RGB 灯带，均以 MCP 工具的形式对外提供控制能力
     void InitializeTools() {
-        static DogController dog_controller(DOG_SERVO_GPIO_1, DOG_SERVO_GPIO_2, DOG_SERVO_GPIO_3, DOG_SERVO_GPIO_4);
+        static DogController dog_controller(DOG_SERVO_GPIO_1, DOG_SERVO_GPIO_2, DOG_SERVO_GPIO_3,
+                                            DOG_SERVO_GPIO_4, DOG_SERVO_GPIO_TAIL);
         static RgbLampController lamp_controller(LAMP_STRIP_GPIO_1, LAMP_STRIP_GPIO_2, LAMP_STRIP_LED_NUM);
         static BatteryMonitor battery_monitor;
     }

@@ -76,3 +76,6 @@ CONFIG_LV_USE_WIN=n
 CONFIG_LV_BUILD_EXAMPLES=n
 CONFIG_LV_BUILD_DEMOS=n
 
+# Local dog control page needs HTTPS so phones can access DeviceOrientation.
+CONFIG_ESP_HTTPS_SERVER_ENABLE=y
+

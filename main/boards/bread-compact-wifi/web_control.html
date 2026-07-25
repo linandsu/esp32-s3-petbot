@@ -5,57 +5,575 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>小狗控制台</title>
 <style>
-:root{color-scheme:dark;--ink:#ecf5f1;--muted:#8ca39b;--line:#284039;--panel:#13231f;--panel2:#182d27;--mint:#72e6b1;--amber:#ffca72;--danger:#ff6b68;--blue:#72bce6}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 82% 5%,#214c3e 0,transparent 30%),linear-gradient(145deg,#08110f,#0d1916 55%,#07100e);color:var(--ink);font:15px/1.45 "Microsoft YaHei","PingFang SC","Noto Sans SC",sans-serif}.wrap{width:min(940px,100%);margin:auto;padding:22px 16px 38px}header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--line);padding:4px 2px 17px;margin-bottom:16px}h1{font-family:"STKaiti","KaiTi",serif;font-size:clamp(27px,5vw,42px);line-height:1;margin:0;letter-spacing:1px}h1 small{display:block;margin-top:8px;color:var(--muted);font:500 11px/1.2 "Microsoft YaHei",sans-serif;letter-spacing:3px}.conn{font-size:12px;color:var(--danger);white-space:nowrap}.conn.on{color:var(--mint)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.bay{position:relative;overflow:hidden;background:linear-gradient(150deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:18px;padding:15px;box-shadow:0 16px 30px #0004}.bay::before{content:attr(data-no);position:absolute;right:12px;top:7px;font:700 34px/1 Georgia,serif;color:#72e6b112}.wide-bay{grid-column:span 2}.title{display:flex;align-items:center;gap:9px;margin:0 0 13px;color:#b8cdc5;font-size:12px;letter-spacing:2px}.title i{width:7px;height:7px;border-radius:50%;background:var(--mint);box-shadow:0 0 12px var(--mint)}.buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}button{min-height:42px;border:1px solid #345047;border-radius:11px;background:#1d342d;color:var(--ink);font:inherit;cursor:pointer;transition:.16s transform,.16s background,.16s border-color,.16s opacity}button:active{transform:scale(.96)}button:hover,button.active{background:#285244;border-color:#61c99c}button:disabled{opacity:.42;cursor:not-allowed}button.stop{background:#542d2d;border-color:#8a4747;color:#ffd7d5;font-weight:700}button.primary{background:#23684f;border-color:#56c795;font-weight:700}button.wide{grid-column:span 3}.light-controls{display:grid;grid-template-columns:150px 1fr;gap:16px;margin-bottom:14px}.color-well{position:relative;min-height:96px;border:1px solid #38564c;border-radius:14px;background:#0b1714;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:7px}.color-well input{width:68px;height:48px;border:0;padding:0;background:none;cursor:pointer}.color-well span,.range-head{color:var(--muted);font-size:12px}.color-well.disabled{opacity:.42}.range-box{display:flex;flex-direction:column;justify-content:center}.range-head{display:flex;justify-content:space-between;margin-bottom:10px}.range-head b{color:var(--amber);font-size:14px}input[type=range]{width:100%;accent-color:var(--mint)}.effect-note{height:18px;margin:8px 0 0;color:var(--muted);font-size:11px}.row{display:flex;gap:9px;align-items:center;margin:8px 0}.row label{min-width:42px;color:var(--muted)}.row output{min-width:28px;color:var(--amber)}.status{font-size:12px;line-height:1.75;color:#b4c9c1;white-space:pre-line}.wake-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-2px 0 14px;padding:12px 14px;border:1px solid #2e5045;border-radius:13px;background:#0d1b17}.wake-now{font-size:12px;color:var(--muted)}.wake-now strong{display:block;margin-top:3px;color:var(--mint);font-size:20px;letter-spacing:1px}.wake-state{padding:5px 9px;border-radius:99px;background:#20372f;color:#a9c1b8;font-size:11px}.wake-threshold{margin:-2px 0 14px;padding:11px 13px;border:1px solid #2e5045;border-radius:13px;background:#10231d}.wake-threshold small{display:block;margin-top:2px;color:#718b81;font-size:10px}.wake-tabs{display:flex;gap:6px;margin-bottom:12px}.wake-tabs button{min-height:36px;padding:0 18px}.wake-pane{display:none}.wake-pane.show{display:block}.preset-list{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.form-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:10px}.field{display:block;color:var(--muted);font-size:11px;letter-spacing:.5px}.field input{display:block;width:100%;height:43px;margin-top:6px;padding:0 12px;border:1px solid #35534a;border-radius:10px;outline:none;background:#0b1714;color:var(--ink);font:15px inherit}.field input:focus{border-color:var(--mint);box-shadow:0 0 0 3px #72e6b116}.wake-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}.validation{min-height:18px;color:var(--muted);font-size:11px}.validation.bad{color:var(--danger)}.validation.good{color:var(--mint)}.save-wake{min-width:150px}.hint{color:#718b81;font-size:11px;text-align:center;margin:15px 0 0}.toast{position:fixed;left:50%;bottom:22px;z-index:20;transform:translate(-50%,20px);min-width:min(360px,calc(100vw - 32px));padding:12px 16px;border:1px solid #3e6257;border-radius:12px;background:#11231eeb;box-shadow:0 18px 50px #0008;color:var(--ink);text-align:center;opacity:0;pointer-events:none;transition:.2s}.toast.show{opacity:1;transform:translate(-50%,0)}.toast.bad{border-color:#864845;color:#ffd0ce}@media(max-width:650px){.grid{grid-template-columns:1fr}.wide-bay{grid-column:auto}.light-controls{grid-template-columns:105px 1fr}.buttons{gap:7px}button{font-size:14px}.preset-list{grid-template-columns:repeat(2,1fr)}.form-grid{grid-template-columns:1fr}.wake-foot{align-items:stretch;flex-direction:column}.save-wake{width:100%}}
-</style>
-<style>
-html,body{max-width:100%;overflow-x:hidden}.wrap,.grid,.bay,.buttons,.range-box,.wake-head,.form-grid{min-width:0}.buttons{grid-template-columns:repeat(3,minmax(0,1fr))}.range-box,.wake-now{overflow-wrap:anywhere}@media(max-width:650px){header{align-items:flex-start;flex-direction:column;gap:12px}h1{max-width:100%}h1 small{overflow-wrap:anywhere}.light-controls{grid-template-columns:105px minmax(0,1fr)}}
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Outfit:wght@300;400;500;600;700&display=swap");
+:root{
+  color-scheme:dark;
+  --bg:#07090d;
+  --bg2:#0c1017;
+  --ink:#e8eef7;
+  --muted:#7b8798;
+  --dim:#4a5568;
+  --line:rgba(148,163,184,.12);
+  --line2:rgba(148,163,184,.22);
+  --accent:#4fd1c5;
+  --accent-dim:rgba(79,209,197,.14);
+  --accent-glow:rgba(79,209,197,.35);
+  --danger:#f07178;
+  --ok:#4fd1c5;
+  --radius:14px;
+  --font:"Outfit","PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --mono:"IBM Plex Mono","Cascadia Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{max-width:100%;overflow-x:hidden}
+body{
+  margin:0;min-height:100vh;color:var(--ink);
+  font:15px/1.5 var(--font);
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%,rgba(79,209,197,.08),transparent 50%),
+    radial-gradient(ellipse 60% 40% at 100% 0%,rgba(99,130,255,.06),transparent 45%),
+    linear-gradient(180deg,var(--bg2),var(--bg));
+}
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.35;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.05'/%3E%3C/svg%3E");
+}
+.wrap{position:relative;z-index:1;width:min(920px,100%);margin:auto;padding:28px 18px 48px}
+header{
+  display:flex;justify-content:space-between;align-items:flex-end;gap:16px;
+  padding:0 2px 18px;margin-bottom:14px;
+  border-bottom:1px solid var(--line);
+  animation:rise .55s ease both;
+}
+h1{
+  margin:0;font-weight:600;letter-spacing:-.02em;
+  font-size:clamp(28px,5.2vw,40px);line-height:1.05;
+}
+h1 small{
+  display:block;margin-top:8px;
+  font:500 10px/1.2 var(--mono);letter-spacing:.28em;
+  color:var(--muted);text-transform:uppercase;
+}
+.conn{
+  font:500 11px/1 var(--mono);letter-spacing:.06em;
+  color:var(--danger);white-space:nowrap;
+  padding:8px 12px;border-radius:999px;
+  border:1px solid rgba(240,113,120,.28);
+  background:rgba(240,113,120,.08);
+  transition:.25s color,.25s border-color,.25s background;
+}
+.conn.on{
+  color:var(--ok);
+  border-color:rgba(79,209,197,.3);
+  background:var(--accent-dim);
+}
+.tabs{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
+  margin-bottom:14px;padding:5px;
+  border:1px solid var(--line);border-radius:14px;
+  background:rgba(0,0,0,.22);
+  position:sticky;top:10px;z-index:5;
+  backdrop-filter:blur(14px);
+  animation:rise .55s ease .04s both;
+}
+.tabs button{
+  min-height:40px;padding:0 8px;
+  border:1px solid transparent;border-radius:10px;
+  background:transparent;color:var(--muted);
+  font:500 13px/1.1 var(--font);letter-spacing:.02em;
+}
+.tabs button:hover{background:rgba(255,255,255,.03);border-color:transparent;color:var(--ink)}
+.tabs button.active{
+  background:var(--accent-dim);border-color:rgba(79,209,197,.4);
+  color:var(--accent);box-shadow:inset 0 0 0 1px rgba(79,209,197,.1);
+}
+.panel{display:none}
+.panel.show{display:block;animation:rise .35s ease both}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.bay{
+  position:relative;min-width:0;overflow:hidden;
+  padding:18px 16px 16px;
+  border:1px solid var(--line);border-radius:var(--radius);
+  background:linear-gradient(165deg,rgba(21,28,40,.92),rgba(16,21,30,.88));
+  backdrop-filter:blur(8px);
+}
+.bay::before{
+  content:attr(data-no);position:absolute;right:14px;top:10px;
+  font:500 28px/1 var(--mono);color:rgba(148,163,184,.08);letter-spacing:-.04em;
+}
+.wide-bay{grid-column:span 2}
+.title{
+  display:flex;align-items:center;gap:8px;margin:0 0 14px;
+  color:var(--muted);font:500 11px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;
+}
+.title i{
+  width:6px;height:6px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 10px var(--accent-glow);
+}
+.buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+button{
+  min-height:42px;min-width:0;padding:0 10px;
+  border:1px solid var(--line2);border-radius:10px;
+  background:rgba(255,255,255,.02);color:var(--ink);
+  font:500 14px/1.2 var(--font);cursor:pointer;
+  transition:.15s transform,.15s background,.15s border-color,.15s color,.15s box-shadow;
+}
+button:hover{background:rgba(79,209,197,.08);border-color:rgba(79,209,197,.35)}
+button:active{transform:scale(.97)}
+button.active{
+  background:var(--accent-dim);border-color:rgba(79,209,197,.55);
+  color:var(--accent);box-shadow:inset 0 0 0 1px rgba(79,209,197,.15);
+}
+button:disabled{opacity:.38;cursor:not-allowed;transform:none}
+button.stop{
+  background:rgba(240,113,120,.1);border-color:rgba(240,113,120,.4);
+  color:#ffc4c7;font-weight:600;
+}
+button.stop:hover{background:rgba(240,113,120,.18)}
+button.primary{
+  background:linear-gradient(135deg,#3ecfbf,#2bb8b0);
+  border-color:transparent;color:#041214;font-weight:600;
+  box-shadow:0 8px 24px rgba(79,209,197,.22);
+}
+button.primary:hover{filter:brightness(1.06);background:linear-gradient(135deg,#4fd1c5,#2bb8b0)}
+button.wide{grid-column:span 3}
+.light-controls{display:grid;grid-template-columns:148px 1fr;gap:16px;margin-bottom:14px}
+.color-well{
+  position:relative;min-height:96px;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;
+  border:1px dashed var(--line2);border-radius:12px;background:rgba(0,0,0,.22);
+}
+.color-well input{width:64px;height:44px;border:0;padding:0;background:none;cursor:pointer}
+.color-well span,.range-head{color:var(--muted);font-size:12px}
+.color-well.disabled{opacity:.42}
+.range-box{display:flex;flex-direction:column;justify-content:center;min-width:0}
+.range-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;gap:8px}
+.range-head b{color:var(--accent);font:600 14px/1 var(--mono)}
+.range-head small{color:var(--dim);font-weight:400}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.effect-note{height:auto;min-height:18px;margin:8px 0 0;color:var(--dim);font-size:11px}
+.row{display:flex;gap:10px;align-items:center;margin:8px 0}
+.row label{min-width:42px;color:var(--muted);font-size:13px}
+.row output{min-width:28px;color:var(--accent);font:600 13px/1 var(--mono)}
+.status{font:13px/1.85 var(--mono);color:#a8b4c4;white-space:pre-line;padding:4px 0 2px}
+.wake-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin:-2px 0 14px;padding:14px 16px;
+  border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2);
+}
+.wake-now{font-size:12px;color:var(--muted)}
+.wake-now strong{
+  display:block;margin-top:4px;
+  color:var(--ink);font:600 22px/1.15 var(--font);letter-spacing:.02em;
+}
+.wake-state{
+  padding:5px 10px;border-radius:999px;flex-shrink:0;
+  border:1px solid var(--line2);background:rgba(255,255,255,.03);
+  color:var(--muted);font:500 10px/1 var(--mono);letter-spacing:.04em;
+}
+.wake-threshold{
+  margin:-2px 0 14px;padding:12px 14px;
+  border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.14);
+}
+.wake-threshold small{display:block;margin-top:2px;color:var(--dim);font-size:10px}
+.wake-tabs{display:flex;gap:6px;margin-bottom:12px}
+.wake-tabs button{min-height:36px;padding:0 18px;font-size:13px}
+.wake-pane{display:none}
+.wake-pane.show{display:block}
+.preset-list{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.form-grid{display:grid;grid-template-columns:1fr 1.4fr;gap:10px}
+.field{display:block;color:var(--muted);font-size:11px;letter-spacing:.04em}
+.field input{
+  display:block;width:100%;height:43px;margin-top:6px;padding:0 12px;
+  border:1px solid var(--line2);border-radius:10px;outline:none;
+  background:rgba(0,0,0,.28);color:var(--ink);font:15px var(--font);
+  transition:.15s border-color,.15s box-shadow;
+}
+.field input:focus{
+  border-color:rgba(79,209,197,.55);
+  box-shadow:0 0 0 3px var(--accent-dim);
+}
+.wake-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px}
+.validation{min-height:18px;color:var(--muted);font-size:11px}
+.validation.bad{color:var(--danger)}
+.validation.good{color:var(--accent)}
+.save-wake{min-width:150px}
+.drive-bay{display:flex;flex-direction:column;align-items:center;gap:16px;padding-top:8px}
+.stick-wrap{
+  position:relative;width:min(280px,72vw);aspect-ratio:1;
+  touch-action:none;user-select:none;-webkit-user-select:none;
+}
+.stick-base{
+  position:absolute;inset:0;border-radius:50%;
+  border:1px solid var(--line2);
+  background:
+    radial-gradient(circle at 50% 50%,rgba(79,209,197,.08),transparent 55%),
+    rgba(0,0,0,.28);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.03);
+}
+.stick-cross{
+  position:absolute;inset:18%;border-radius:50%;pointer-events:none;
+  background:
+    linear-gradient(var(--line2),var(--line2)) center/1px 100% no-repeat,
+    linear-gradient(var(--line2),var(--line2)) center/100% 1px no-repeat;
+  opacity:.55;
+}
+.stick-knob{
+  position:absolute;width:34%;height:34%;left:33%;top:33%;
+  border-radius:50%;
+  border:1px solid rgba(79,209,197,.45);
+  background:linear-gradient(145deg,rgba(79,209,197,.35),rgba(79,209,197,.12));
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
+  transform:translate(0,0);
+  will-change:transform;
+}
+.drive-meta{width:100%;max-width:320px;text-align:center}
+.drive-readout{
+  font:500 12px/1.4 var(--mono);color:var(--muted);letter-spacing:.04em;
+  min-height:2.8em;
+}
+.drive-readout b{color:var(--accent);font-weight:600}
+.gyro-row{
+  display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;
+  margin-top:10px;
+}
+.gyro-row label{
+  display:inline-flex;align-items:center;gap:8px;
+  color:var(--ink);font-size:13px;cursor:pointer;
+}
+.gyro-row input{accent-color:var(--accent);width:16px;height:16px}
+.gyro-note{width:100%;color:var(--dim);font-size:11px;margin-top:8px;line-height:1.45}
+.hint{
+  color:var(--dim);font-size:11px;text-align:center;margin:22px 0 0;
+  letter-spacing:.02em;animation:rise .7s ease .3s both;
+}
+.toast{
+  position:fixed;left:50%;bottom:22px;z-index:20;
+  transform:translate(-50%,16px);
+  min-width:min(360px,calc(100vw - 32px));
+  padding:12px 16px;
+  border:1px solid var(--line2);border-radius:12px;
+  background:rgba(12,16,23,.94);backdrop-filter:blur(12px);
+  box-shadow:0 18px 50px rgba(0,0,0,.45);
+  color:var(--ink);text-align:center;font-size:13px;
+  opacity:0;pointer-events:none;transition:.22s;
+}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.bad{border-color:rgba(240,113,120,.45);color:#ffc4c7}
+@keyframes rise{
+  from{opacity:0;transform:translateY(8px)}
+  to{opacity:1;transform:none}
+}
+@media(max-width:650px){
+  .wrap{padding:20px 14px 40px}
+  header{align-items:flex-start;flex-direction:column;gap:12px}
+  h1{max-width:100%}
+  .tabs{top:8px;gap:4px}
+  .tabs button{font-size:11px;min-height:38px;padding:0 2px}
+  .grid{grid-template-columns:1fr}
+  .wide-bay{grid-column:auto}
+  .light-controls{grid-template-columns:105px minmax(0,1fr)}
+  .buttons{gap:7px}
+  button{font-size:13px}
+  .preset-list{grid-template-columns:repeat(2,1fr)}
+  .form-grid{grid-template-columns:1fr}
+  .wake-foot{align-items:stretch;flex-direction:column}
+  .save-wake{width:100%}
+  .wake-now strong{font-size:18px}
+}
 </style>
 </head>
 <body><main class="wrap">
-<header><h1>小狗控制台<small>LOCAL MOTION &amp; LIGHT LAB</small></h1><strong id="conn" class="conn">● 正在连接</strong></header>
-<div class="grid">
-<section class="bay" data-no="01"><h2 class="title"><i></i>动作控制</h2><div class="buttons" id="actions"><button data-a="walk">前进</button><button data-a="stand">站立</button><button data-a="walk_back">后退</button><button data-a="turn_left">左转</button><button data-a="sitdown">坐下</button><button data-a="turn_right">右转</button><button data-a="wave">挥手</button><button data-a="sleep">趴睡</button><button class="stop" data-a="stop">立即停止</button></div></section>
-<section class="bay" data-no="02"><h2 class="title"><i></i>表情</h2><div class="buttons" id="emotions"><button data-e="neutral">平静</button><button data-e="listening">聆听</button><button data-e="happy">开心</button><button data-e="sad">难过</button><button data-e="angry">生气</button><button id="auto">恢复自动</button></div></section>
-<section class="bay wide-bay" data-no="03"><h2 class="title"><i></i>实时灯光</h2><div class="light-controls"><label class="color-well" id="colorWell"><input id="color" type="color" value="#ffffff" aria-label="灯光颜色"><span id="colorText">#FFFFFF · 待应用</span></label><div class="range-box"><div class="range-head"><span>亮度 <small>选择灯效时应用</small></span><b id="bnum">180</b></div><input id="bright" type="range" min="0" max="255" value="180"><p class="effect-note" id="effectNote">选择颜色和亮度不会点亮；点击灯效后才会按当前设置亮起</p></div></div><div class="buttons" id="effects"><button data-e="color">常亮</button><button data-e="breathe">呼吸灯</button><button data-e="flash">闪烁</button><button data-e="flow">流水灯</button><button data-e="neon">霓虹灯</button><button data-e="rainbow">彩虹灯</button><button class="wide" data-e="off">关闭灯光</button></div></section>
-<section class="bay" data-no="04"><h2 class="title"><i></i>设备</h2><div class="row"><label>音量</label><input id="volume" type="range" min="0" max="100" value="50"><output id="vnum">50</output></div><div class="buttons"><button id="wake">唤醒对话</button><button id="sleep">进入睡眠</button></div></section>
-<section class="bay" data-no="05"><h2 class="title"><i></i>运行状态</h2><div class="status" id="status">正在读取设备状态……</div></section>
-<section class="bay wide-bay" data-no="06"><h2 class="title"><i></i>唤醒词设置</h2>
-  <div class="wake-head"><div class="wake-now">当前唤醒词<strong id="wakeNow">你好小智</strong></div><span class="wake-state" id="wakeState">预设 · 已生效</span></div>
-  <div class="range-box wake-threshold"><div class="range-head"><span>检测阈值 <small id="wakeThresholdHint">预设词和自定义词共用；数值越低越容易唤醒</small></span><b id="wakeThresholdValue">0.63</b></div><input id="wakeThreshold" type="range" min="40" max="95" value="63"><p class="effect-note">降低会提升灵敏度并增加误唤醒概率；有效范围为 0.40 到 0.95。</p></div>
-  <div class="wake-tabs"><button class="active" data-tab="preset">中文预设</button><button data-tab="custom">自定义中文</button></div>
-  <div class="wake-pane show" id="presetPane"><div class="preset-list" id="presets"><button data-model="wn9_nihaoxiaozhi_tts">你好小智</button><button data-model="wn9_xiaoaitongxue">小爱同学</button><button data-model="wn9_hai1xiao3ou1_tts3">嗨小欧</button><button data-model="wn9_ni3hao3xiao3rui4_tts3">你好小瑞</button></div></div>
-  <div class="wake-pane" id="customPane"><div class="form-grid"><label class="field">中文唤醒词<input id="wakeText" maxlength="8" placeholder="例如：你好小狗" autocomplete="off"></label><label class="field">识别拼音（可修正多音字）<input id="wakePinyin" placeholder="ni hao xiao gou" autocomplete="off" spellcheck="false"></label></div></div>
-  <div class="wake-foot"><span class="validation" id="wakeValidation">选择预设词后保存，设备会自动重启生效</span><button class="primary save-wake" id="saveWake">保存并重启</button></div>
-</section>
-</div><p class="hint">仅限当前 Wi-Fi 局域网使用 · 本页面未设置密码，同一网络内的设备均可控制</p>
+<header>
+  <h1>小狗控制台<small>LOCAL CONTROL · MOTION &amp; LIGHT</small></h1>
+  <strong id="conn" class="conn">● 正在连接</strong>
+</header>
+
+<nav class="tabs" id="mainTabs" aria-label="功能分页">
+  <button type="button" class="active" data-panel="control">控制</button>
+  <button type="button" data-panel="device">设备</button>
+  <button type="button" data-panel="wake">唤醒词</button>
+  <button type="button" data-panel="drive">遥控</button>
+</nav>
+
+<div class="panel show" id="panel-control">
+  <div class="grid">
+    <section class="bay" data-no="01"><h2 class="title"><i></i>动作控制</h2><div class="buttons" id="actions"><button data-a="walk">前进</button><button data-a="stand">站立</button><button data-a="walk_back">后退</button><button data-a="turn_left">左转</button><button data-a="sitdown">坐下</button><button data-a="turn_right">右转</button><button data-a="wave">挥手</button><button data-a="wag_tail">摇尾巴</button><button data-a="sleep">趴睡</button><button class="stop" data-a="stop">立即停止</button></div></section>
+    <section class="bay" data-no="02"><h2 class="title"><i></i>表情</h2><div class="buttons" id="emotions"><button data-e="neutral">平静</button><button data-e="listening">聆听</button><button data-e="happy">开心</button><button data-e="sad">难过</button><button data-e="angry">生气</button><button data-e="thinking">思考</button><button data-e="surprised">惊讶</button><button id="auto">恢复自动</button></div></section>
+    <section class="bay wide-bay" data-no="03"><h2 class="title"><i></i>实时灯光</h2><div class="light-controls"><label class="color-well" id="colorWell"><input id="color" type="color" value="#ffffff" aria-label="灯光颜色"><span id="colorText">#FFFFFF · 待应用</span></label><div class="range-box"><div class="range-head"><span>亮度 <small>选择灯效时应用</small></span><b id="bnum">180</b></div><input id="bright" type="range" min="0" max="255" value="180"><p class="effect-note" id="effectNote">选择颜色和亮度不会点亮；点击灯效后才会按当前设置亮起</p></div></div><div class="buttons" id="effects"><button data-e="color">常亮</button><button data-e="breathe">呼吸灯</button><button data-e="flash">闪烁</button><button data-e="flow">流水灯</button><button data-e="neon">霓虹灯</button><button data-e="rainbow">彩虹灯</button><button class="wide" data-e="off">关闭灯光</button></div></section>
+  </div>
+</div>
+
+<div class="panel" id="panel-device">
+  <div class="grid">
+    <section class="bay" data-no="04"><h2 class="title"><i></i>设备</h2><div class="row"><label>音量</label><input id="volume" type="range" min="0" max="100" value="50"><output id="vnum">50</output></div><div class="buttons"><button id="wake">唤醒对话</button><button id="sleep">进入睡眠</button></div></section>
+    <section class="bay" data-no="05"><h2 class="title"><i></i>运行状态</h2><div class="status" id="status">正在读取设备状态……</div></section>
+  </div>
+</div>
+
+<div class="panel" id="panel-wake">
+  <div class="grid">
+    <section class="bay wide-bay" data-no="06"><h2 class="title"><i></i>唤醒词设置</h2>
+      <div class="wake-head"><div class="wake-now">当前唤醒词<strong id="wakeNow">你好小智</strong></div><span class="wake-state" id="wakeState">预设 · 已生效</span></div>
+      <div class="range-box wake-threshold"><div class="range-head"><span>检测阈值 <small id="wakeThresholdHint">预设词和自定义词共用；数值越低越容易唤醒</small></span><b id="wakeThresholdValue">0.63</b></div><input id="wakeThreshold" type="range" min="40" max="95" value="63"><p class="effect-note">降低会提升灵敏度并增加误唤醒概率；有效范围为 0.40 到 0.95。</p></div>
+      <div class="wake-tabs"><button class="active" data-tab="preset">中文预设</button><button data-tab="custom">自定义中文</button></div>
+      <div class="wake-pane show" id="presetPane"><div class="preset-list" id="presets"><button data-model="wn9_nihaoxiaozhi_tts">你好小智</button><button data-model="wn9_xiaoaitongxue">小爱同学</button><button data-model="wn9_hai1xiao3ou1_tts3">嗨小欧</button><button data-model="wn9_ni3hao3xiao3rui4_tts3">你好小瑞</button></div></div>
+      <div class="wake-pane" id="customPane"><div class="form-grid"><label class="field">中文唤醒词<input id="wakeText" maxlength="8" placeholder="例如：你好小狗" autocomplete="off"></label><label class="field">识别拼音（可修正多音字）<input id="wakePinyin" placeholder="ni hao xiao gou" autocomplete="off" spellcheck="false"></label></div></div>
+      <div class="wake-foot"><span class="validation" id="wakeValidation">选择预设词后保存，设备会自动重启生效</span><button class="primary save-wake" id="saveWake">保存并重启</button></div>
+    </section>
+  </div>
+</div>
+
+<div class="panel" id="panel-drive">
+  <div class="grid">
+    <section class="bay wide-bay" data-no="07"><h2 class="title"><i></i>流畅遥控</h2>
+      <div class="drive-bay">
+        <div class="stick-wrap" id="stick" aria-label="遥控圆盘">
+          <div class="stick-base"></div>
+          <div class="stick-cross"></div>
+          <div class="stick-knob" id="stickKnob"></div>
+        </div>
+        <div class="drive-meta">
+          <div class="drive-readout" id="driveReadout">已停止<br>推左前方可边走边转</div>
+          <div class="gyro-row">
+            <label><input type="checkbox" id="gyroEnable"> 陀螺仪遥控</label>
+            <button type="button" id="gyroPermission" style="display:none;min-height:36px;padding:0 14px;font-size:12px">授权运动传感器</button>
+            <button type="button" id="gyroCalibrate" style="min-height:36px;padding:0 14px;font-size:12px">校准水平</button>
+            <a id="httpsLink" href="#" style="display:none;font-size:12px;color:var(--accent)">打开 HTTPS 启用陀螺仪</a>
+          </div>
+          <p class="gyro-note" id="gyroNote">开启后倾斜手机控制方向；手指按住圆盘时优先圆盘。离开本页或切到后台会自动停止。</p>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<p class="hint">仅限当前 Wi-Fi 局域网使用 · 本页面未设置密码，同一网络内的设备均可控制</p>
 </main><div class="toast" id="toast"></div>
 <script src="/vendor/pinyin-pro.min.js"></script>
 <script>
-let ws,id=1,lastStatus={},lampEditingUntil=0,lampInFlight=0,pendingLamp={},wakeMode='preset',selectedPreset='wn9_nihaoxiaozhi_tts',wakeRequest=0,wakeDraftDirty=false,wakeThreshold=.63,toastTimer=0;const $=s=>document.querySelector(s);
+let ws,id=1,lastStatus={},lampEditingUntil=0,lampInFlight=0,pendingLamp={},wakeMode='preset',selectedPreset='wn9_nihaoxiaozhi_tts',wakeRequest=0,wakeDraftDirty=false,wakeThreshold=.63,toastTimer=0,lampDraftDirty=false;
+let driveForward=0,driveTurn=0,lastDriveSent={f:null,t:null},driveTimer=0,stickActive=false,gyroOn=false,gyroPerm=false,activePanel='control';
+const $=s=>document.querySelector(s);
 function send(command,args={}){if(!ws||ws.readyState!==1)return null;const request=id++;ws.send(JSON.stringify({id:request,command,args}));return request}
 function rgbHex(l){return '#'+[l.r,l.g,l.b].map(v=>(v??0).toString(16).padStart(2,'0')).join('').toUpperCase()}
 function toast(text,bad=false,hold=2600){const el=$('#toast');el.textContent=text;el.className='toast show'+(bad?' bad':'');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.className='toast',hold)}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function updateDriveReadout(){
+  const el=$('#driveReadout');
+  if(Math.abs(driveForward)<.12&&Math.abs(driveTurn)<.12){el.innerHTML='已停止<br>推左前方可边走边转';return}
+  const dir=[];
+  if(driveForward>.12)dir.push('前进');else if(driveForward<-.12)dir.push('后退');
+  if(driveTurn>.12)dir.push('右转');else if(driveTurn<-.12)dir.push('左转');
+  el.innerHTML=`<b>${dir.join(' · ')||'驱动'}</b><br>F ${driveForward.toFixed(2)} · T ${driveTurn.toFixed(2)}`
+}
+function pushDrive(force=false){
+  const f=Math.abs(driveForward)<.12?0:+driveForward.toFixed(3);
+  const t=Math.abs(driveTurn)<.12?0:+driveTurn.toFixed(3);
+  if(!force&&lastDriveSent.f===f&&lastDriveSent.t===t)return;
+  lastDriveSent={f,t};
+  send('dog.drive',{forward:f,turn:t});
+  updateDriveReadout();
+}
+function setDriveVector(forward,turn,fromStick){
+  driveForward=clamp(forward,-1,1);
+  driveTurn=clamp(turn,-1,1);
+  if(fromStick)stickActive=true;
+  pushDrive();
+}
+function stopDrive(force=true){
+  stickActive=false;
+  driveForward=0;driveTurn=0;
+  const knob=$('#stickKnob');
+  if(knob)knob.style.transform='translate(0px,0px)';
+  pushDrive(force);
+}
+function switchPanel(name){
+  if(activePanel==='drive'&&name!=='drive')stopDrive(true);
+  activePanel=name;
+  document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('active',b.dataset.panel===name));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('show',p.id==='panel-'+name));
+  try{history.replaceState(null,'','#'+name)}catch(e){}
+}
 function thresholdBounds(){return{min:.40,max:.95,def:.63}}
 function syncWakeThreshold(clamp=true){const b=thresholdBounds();if(clamp&&(wakeThreshold<b.min||wakeThreshold>b.max))wakeThreshold=b.def;const slider=$('#wakeThreshold');slider.min=Math.round(b.min*100);slider.max=Math.round(b.max*100);slider.value=Math.round(wakeThreshold*100);$('#wakeThresholdValue').textContent=wakeThreshold.toFixed(2);$('#wakeThresholdHint').textContent='预设词和自定义词共用；数值越低越容易唤醒'}
 function switchWakeTab(mode,dirty=false){wakeMode=mode;if(dirty)wakeDraftDirty=true;syncWakeThreshold();document.querySelectorAll('.wake-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===mode));$('#presetPane').classList.toggle('show',mode==='preset');$('#customPane').classList.toggle('show',mode==='custom');validateWake()}
 function pinyinFor(text){if(!window.pinyinPro||!text)return '';const value=window.pinyinPro.pinyin(text,{toneType:'none',type:'array'});return Array.isArray(value)?value.join(' '):String(value).replace(/\s+/g,' ').trim()}
-function validateWake(){const note=$('#wakeValidation'),save=$('#saveWake'),b=thresholdBounds();let good=wakeThreshold>=b.min&&wakeThreshold<=b.max,msg='';if(!good)msg=`检测阈值需在 ${b.min.toFixed(2)} 到 ${b.max.toFixed(2)} 之间`;else if(wakeMode==='preset'){good=!!selectedPreset;msg=good?'保存后设备会自动重启，约十几秒恢复连接':'请选择一个预设唤醒词'}else{const text=$('#wakeText').value.trim(),py=$('#wakePinyin').value.trim().toLowerCase().replace(/\s+/g,' ');const chars=[...text];const tokens=py?py.split(' '):[];if(!/^[\u3400-\u9fff]{2,8}$/.test(text)){good=false;msg='请输入 2 到 8 个纯中文汉字'}else if(tokens.length!==chars.length||tokens.some(x=>!/^[a-z]{1,6}$/.test(x))){good=false;msg='每个汉字需要一个拼音，使用小写字母并用空格分隔'}else msg='拼音会决定实际识别读音，多音字请在此处修正';}note.textContent=msg;note.className='validation '+(good?'good':'bad');save.disabled=!good||wakeRequest!==0;return good}
-function render(s){lastStatus=s;$('#conn').className='conn on';$('#conn').textContent='● 已连接';const n=s.network||{},l=s.lamp||{},a=s.audio_speaker||{},w=s.wake_word||{},bt=s.battery||{};const battery=bt.voltage!=null?`\n电池：${bt.voltage.toFixed(2)}V（${bt.percent}% · ${bt.level||'-'}）`:'';$('#status').textContent=`状态：${s.device_state||'-'}\n动作：${s.dog_action||'-'}\n网络：${n.ssid||'-'}（${n.signal||'-'}）\n灯效：${l.effect||'-'}${battery}\n地址：${s.control_url||location.href}`;if(a.volume!=null&&document.activeElement!==$('#volume')){$('#volume').value=a.volume;$('#vnum').textContent=a.volume}if(Date.now()>lampEditingUntil){if(l.r!=null){$('#color').value=rgbHex(l);$('#colorText').textContent=rgbHex(l)+' · 实时'}if(l.brightness!=null){$('#bright').value=l.brightness;$('#bnum').textContent=l.brightness}}document.querySelectorAll('#effects [data-e]').forEach(b=>b.classList.toggle('active',b.dataset.e===l.effect));const rainbow=l.effect==='rainbow';$('#color').disabled=rainbow;$('#colorWell').classList.toggle('disabled',rainbow);$('#effectNote').textContent=rainbow?'彩虹灯自动变色，亮度仍可实时调节':'选色会立即作用于当前灯效';if(w.display_text&&!wakeDraftDirty){$('#wakeNow').textContent=w.display_text;$('#wakeState').textContent=(w.mode==='custom'?'自定义':'预设')+(w.fallback?' · 已安全回退':' · 已生效');if(w.fallback&&w.fallback_reason)toast('唤醒词已回退：'+w.fallback_reason,true,5000);if(wakeRequest===0){selectedPreset=w.preset_model||selectedPreset;switchWakeTab(w.mode==='custom'?'custom':'preset');document.querySelectorAll('#presets button').forEach(b=>b.classList.toggle('active',b.dataset.model===selectedPreset));$('#wakeText').value=w.mode==='custom'?w.display_text:'';$('#wakePinyin').value=w.mode==='custom'?w.command_pinyin:'';}}}
+function validateWake(){const note=$('#wakeValidation'),save=$('#saveWake'),b=thresholdBounds();let good=wakeThreshold>=b.min&&wakeThreshold<=b.max,msg='';if(!good)msg=`检测阈值需在 ${b.min.toFixed(2)} 到 ${b.max.toFixed(2)} 之间`;else if(wakeMode==='preset'){good=!!selectedPreset;msg=good?'保存后设备会自动重启，约十几秒恢复连接':'请选择一个预设唤醒词'}else{const text=$('#wakeText').value.trim(),py=$('#wakePinyin').value.trim().toLowerCase().replace(/\s+/g,' ');const chars=[...text];const tokens=py?py.split(' '):[];if(!/^[\u3400-\u9fff]{2,8}$/.test(text)){good=false;msg='请输入 2 到 8 个纯中文汉字'}else if(tokens.length!==chars.length||tokens.some(x=>!/^[a-z]{1,6}$/.test(x))){good=false;msg='每个汉字需要一个拼音，使用小写字母并用空格分隔'}else msg='拼音会决定实际识别读音，多音字请在此处修正'}note.textContent=msg;note.className='validation '+(good?'good':'bad');save.disabled=!good||wakeRequest!==0;return good}
+function currentLampDraft(){const x=$('#color').value;return{r:parseInt(x.slice(1,3),16),g:parseInt(x.slice(3,5),16),b:parseInt(x.slice(5,7),16),brightness:+$('#bright').value}}
+function render(s){lastStatus=s;$('#conn').className='conn on';$('#conn').textContent='● 已连接';const n=s.network||{},l=s.lamp||{},a=s.audio_speaker||{},w=s.wake_word||{},bt=s.battery||{};const battery=bt.voltage!=null?`\n电池：${bt.voltage.toFixed(2)}V（${bt.percent}% · ${bt.level||'-'}）`:'';const action=(s.dog_action||'-')+(s.dog_action_running?'（执行中）':'');$('#status').textContent=`状态：${s.device_state||'-'}\n动作：${action}\n网络：${n.ssid||'-'}（${n.signal||'-'}）\n灯效：${l.effect||'-'}${battery}\n地址：${s.control_url||location.href}`;if(a.volume!=null&&document.activeElement!==$('#volume')){$('#volume').value=a.volume;$('#vnum').textContent=a.volume}if(Date.now()>lampEditingUntil){if(l.r!=null){$('#color').value=rgbHex(l);$('#colorText').textContent=rgbHex(l)+(lampDraftDirty?' · 待应用':' · 实时')}if(l.brightness!=null){$('#bright').value=l.brightness;$('#bnum').textContent=l.brightness}}document.querySelectorAll('#effects [data-e]').forEach(b=>b.classList.toggle('active',b.dataset.e===l.effect));const rainbow=l.effect==='rainbow';$('#color').disabled=rainbow;$('#colorWell').classList.toggle('disabled',rainbow);if(w.display_text&&!wakeDraftDirty){$('#wakeNow').textContent=w.display_text;$('#wakeState').textContent=(w.mode==='custom'?'自定义':'预设')+(w.fallback?' · 已安全回退':' · 已生效');if(w.fallback&&w.fallback_reason)toast('唤醒词已回退：'+w.fallback_reason,true,5000);if(wakeRequest===0){selectedPreset=w.preset_model||selectedPreset;switchWakeTab(w.mode==='custom'?'custom':'preset');document.querySelectorAll('#presets button').forEach(b=>b.classList.toggle('active',b.dataset.model===selectedPreset));$('#wakeText').value=w.mode==='custom'?w.display_text:'';$('#wakePinyin').value=w.mode==='custom'?w.command_pinyin:'';}}}
 function syncRemoteState(s){const w=s.wake_word||{},l=s.lamp||{};if(w.display_text&&wakeRequest===0&&!wakeDraftDirty&&Number.isFinite(+w.threshold)){wakeThreshold=+w.threshold;syncWakeThreshold(false)}if(!lampDraftDirty&&l.r!=null){$('#colorText').textContent=rgbHex(l)+' · 待应用'}const rainbow=l.effect==='rainbow';$('#effectNote').textContent=rainbow?'彩虹灯自动变色，颜色设置会保留给下次非彩虹灯效':'选择颜色和亮度不会点亮；点击灯效后才会按当前设置亮起'}
 function flushLamp(){if(lampInFlight||!Object.keys(pendingLamp).length||!ws||ws.readyState!==1)return;const args=pendingLamp;pendingLamp={};lampInFlight=id++;ws.send(JSON.stringify({id:lampInFlight,command:'lamp.update',args}))}
 function queueLamp(values){Object.assign(pendingLamp,values);flushLamp()}
-function connect(){ws=new WebSocket(`ws://${location.host}/api/ws`);ws.onopen=flushLamp;ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state'){render(m.payload);syncRemoteState(m.payload)}if(m.type==='result'){if(m.id===lampInFlight){lampInFlight=0;flushLamp()}if(m.id===wakeRequest){wakeRequest=0;if(m.ok&&m.restart_required){wakeDraftDirty=false;let left=Math.ceil((m.restart_in_ms||3000)/1000);toast(`设置已保存，${left} 秒后重启…`,false,5000);const timer=setInterval(()=>{left--;if(left>0)toast(`设置已保存，${left} 秒后重启…`,false,5000);else clearInterval(timer)},1000)}else if(!m.ok)toast(m.error||'唤醒词保存失败',true,5000);validateWake()}}};ws.onclose=()=>{lampInFlight=0;wakeRequest=0;validateWake();$('#conn').className='conn';$('#conn').textContent='● 连接断开，正在重连';setTimeout(connect,1500)}}
-connect();$('#actions').onclick=e=>e.target.dataset.a&&send('dog.action',{action:e.target.dataset.a});$('#emotions').onclick=e=>e.target.dataset.e&&send('emotion.set',{emotion:e.target.dataset.e});$('#effects').onclick=e=>e.target.dataset.e&&send('lamp.effect',{effect:e.target.dataset.e});$('#color').oninput=e=>{lampEditingUntil=Date.now()+600;const x=e.target.value;$('#colorText').textContent=x.toUpperCase()+' · 实时';queueLamp({r:parseInt(x.slice(1,3),16),g:parseInt(x.slice(3,5),16),b:parseInt(x.slice(5,7),16)})};$('#bright').oninput=e=>{lampEditingUntil=Date.now()+600;$('#bnum').textContent=e.target.value;queueLamp({brightness:+e.target.value})};$('#auto').onclick=()=>send('emotion.auto');$('#wake').onclick=()=>send('device.wake');$('#sleep').onclick=()=>send('device.sleep');$('#volume').oninput=e=>$('#vnum').textContent=e.target.value;$('#volume').onchange=e=>send('volume.set',{volume:+e.target.value});document.querySelectorAll('.wake-tabs button').forEach(b=>b.onclick=()=>switchWakeTab(b.dataset.tab,true));$('#presets').onclick=e=>{if(!e.target.dataset.model)return;wakeDraftDirty=true;selectedPreset=e.target.dataset.model;document.querySelectorAll('#presets button').forEach(b=>b.classList.toggle('active',b===e.target));validateWake()};$('#wakeText').oninput=e=>{wakeDraftDirty=true;$('#wakePinyin').value=pinyinFor(e.target.value.trim());validateWake()};$('#wakePinyin').oninput=()=>{wakeDraftDirty=true;validateWake()};$('#saveWake').onclick=()=>{if(!validateWake()||wakeRequest)return;const args=wakeMode==='preset'?{mode:'preset',preset_model:selectedPreset}:{mode:'custom',display_text:$('#wakeText').value.trim(),command_pinyin:$('#wakePinyin').value.trim().toLowerCase().replace(/\s+/g,' ')};wakeRequest=send('wake_word.set',args);if(wakeRequest===null){toast('控制台尚未连接，未发送保存请求',true,5000);wakeRequest=0;validateWake();return}validateWake();toast('正在校验并保存唤醒词…')};validateWake();
-</script>
-<script>
+function connect(){const proto=location.protocol==='https:'?'wss':'ws';ws=new WebSocket(`${proto}://${location.host}/api/ws`);ws.onopen=flushLamp;ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.type==='state'){render(m.payload);syncRemoteState(m.payload)}if(m.type==='result'){if(m.id===lampInFlight){lampInFlight=0;flushLamp()}if(m.id===wakeRequest){wakeRequest=0;if(m.ok&&m.restart_required){wakeDraftDirty=false;let left=Math.ceil((m.restart_in_ms||3000)/1000);toast(`设置已保存，${left} 秒后重启…`,false,5000);const timer=setInterval(()=>{left--;if(left>0)toast(`设置已保存，${left} 秒后重启…`,false,5000);else clearInterval(timer)},1000)}else if(!m.ok)toast(m.error||'唤醒词保存失败',true,5000);validateWake()}}};ws.onclose=()=>{lampInFlight=0;wakeRequest=0;validateWake();stopDrive(true);$('#conn').className='conn';$('#conn').textContent='● 连接断开，正在重连';setTimeout(connect,1500)}}
+connect();
+document.querySelectorAll('#mainTabs button').forEach(b=>b.onclick=()=>switchPanel(b.dataset.panel));
+const hash=location.hash.replace('#','');
+if(hash==='device'||hash==='wake'||hash==='control'||hash==='drive')switchPanel(hash);
+$('#actions').onclick=e=>e.target.dataset.a&&send('dog.action',{action:e.target.dataset.a});
+$('#emotions').onclick=e=>e.target.dataset.e&&send('emotion.set',{emotion:e.target.dataset.e});
+$('#effects').onclick=e=>{const effect=e.target.dataset.e;if(!effect)return;if(effect==='off'){lampDraftDirty=false;lampEditingUntil=0;send('lamp.effect',{effect:'off'});return}const lamp=currentLampDraft();lampDraftDirty=false;lampEditingUntil=0;send('lamp.configure',{effect,...lamp})};
+$('#color').oninput=e=>{lampDraftDirty=true;lampEditingUntil=Number.MAX_SAFE_INTEGER;$('#colorText').textContent=e.target.value.toUpperCase()+' · 待应用'};
+$('#bright').oninput=e=>{lampDraftDirty=true;lampEditingUntil=Number.MAX_SAFE_INTEGER;$('#bnum').textContent=e.target.value};
+$('#auto').onclick=()=>send('emotion.auto');
+$('#wake').onclick=()=>send('device.wake');
+$('#sleep').onclick=()=>send('device.sleep');
+$('#volume').oninput=e=>$('#vnum').textContent=e.target.value;
+$('#volume').onchange=e=>send('volume.set',{volume:+e.target.value});
+document.querySelectorAll('.wake-tabs button').forEach(b=>b.onclick=()=>switchWakeTab(b.dataset.tab,true));
+$('#presets').onclick=e=>{if(!e.target.dataset.model)return;wakeDraftDirty=true;selectedPreset=e.target.dataset.model;document.querySelectorAll('#presets button').forEach(b=>b.classList.toggle('active',b===e.target));validateWake()};
+$('#wakeText').oninput=e=>{wakeDraftDirty=true;$('#wakePinyin').value=pinyinFor(e.target.value.trim());validateWake()};
+$('#wakePinyin').oninput=()=>{wakeDraftDirty=true;validateWake()};
 $('#wakeThreshold').oninput=e=>{wakeDraftDirty=true;wakeThreshold=+e.target.value/100;syncWakeThreshold(false);validateWake()};
 $('#saveWake').onclick=()=>{if(!validateWake()||wakeRequest)return;const args=wakeMode==='preset'?{mode:'preset',preset_model:selectedPreset,threshold:wakeThreshold}:{mode:'custom',display_text:$('#wakeText').value.trim(),command_pinyin:$('#wakePinyin').value.trim().toLowerCase().replace(/\s+/g,' '),threshold:wakeThreshold};wakeRequest=send('wake_word.set',args);if(wakeRequest===null){toast('控制台尚未连接，未发送保存请求',true,5000);wakeRequest=0;validateWake();return}validateWake();toast('正在校验并保存唤醒词…')};
 syncWakeThreshold(false);validateWake();
-</script>
-<script>
-var lampDraftDirty=false;
-function currentLampDraft(){const x=$('#color').value;return{r:parseInt(x.slice(1,3),16),g:parseInt(x.slice(3,5),16),b:parseInt(x.slice(5,7),16),brightness:+$('#bright').value}}
-$('#color').oninput=e=>{lampDraftDirty=true;lampEditingUntil=Number.MAX_SAFE_INTEGER;$('#colorText').textContent=e.target.value.toUpperCase()+' · 待应用'};
-$('#bright').oninput=e=>{lampDraftDirty=true;lampEditingUntil=Number.MAX_SAFE_INTEGER;$('#bnum').textContent=e.target.value};
-$('#effects').onclick=e=>{const effect=e.target.dataset.e;if(!effect)return;if(effect==='off'){lampDraftDirty=false;lampEditingUntil=0;send('lamp.effect',{effect:'off'});return}const lamp=currentLampDraft();lampDraftDirty=false;lampEditingUntil=0;send('lamp.configure',{effect,...lamp})};
+
+(function initDrivePad(){
+  const stick=$('#stick'),knob=$('#stickKnob');
+  if(!stick||!knob)return;
+  let dragging=false,pointerId=null;
+  function pointFromEvent(e){
+    const t=(e.touches&&e.touches[0])||(e.changedTouches&&e.changedTouches[0])||e;
+    return{x:t.clientX,y:t.clientY};
+  }
+  function applyPointer(clientX,clientY){
+    const rect=stick.getBoundingClientRect();
+    const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;
+    const max=rect.width*0.33;
+    let dx=clientX-cx,dy=clientY-cy;
+    const dist=Math.hypot(dx,dy)||1;
+    if(dist>max){dx=dx/dist*max;dy=dy/dist*max}
+    knob.style.transform=`translate(${dx}px,${dy}px)`;
+    // Screen up = forward, right = turn right
+    setDriveVector(clamp(-dy/max,-1,1),clamp(dx/max,-1,1),true);
+  }
+  function onDown(e){
+    if(e.type.startsWith('touch')){if(pointerId!=null)return;pointerId=e.changedTouches[0].identifier}
+    dragging=true;stickActive=true;
+    const p=pointFromEvent(e);applyPointer(p.x,p.y);
+    e.preventDefault();
+  }
+  function onMove(e){
+    if(!dragging)return;
+    if(e.type.startsWith('touch')){
+      let touch=null;
+      for(const t of e.changedTouches){if(t.identifier===pointerId){touch=t;break}}
+      if(!touch)return;
+      applyPointer(touch.clientX,touch.clientY);
+    }else applyPointer(e.clientX,e.clientY);
+    e.preventDefault();
+  }
+  function onUp(e){
+    if(!dragging)return;
+    if(e.type.startsWith('touch')){
+      let match=false;
+      for(const t of e.changedTouches){if(t.identifier===pointerId){match=true;break}}
+      if(!match)return;
+      pointerId=null;
+    }
+    dragging=false;
+    stickActive=false;
+    knob.style.transform='translate(0px,0px)';
+    if(!gyroOn)stopDrive(true);
+    else{driveForward=0;driveTurn=0;pushDrive(true)}
+  }
+  stick.addEventListener('mousedown',onDown);
+  window.addEventListener('mousemove',onMove);
+  window.addEventListener('mouseup',onUp);
+  stick.addEventListener('touchstart',onDown,{passive:false});
+  stick.addEventListener('touchmove',onMove,{passive:false});
+  stick.addEventListener('touchend',onUp);
+  stick.addEventListener('touchcancel',onUp);
+
+  clearInterval(driveTimer);
+  driveTimer=setInterval(()=>{
+    if(activePanel!=='drive')return;
+    if(Math.abs(driveForward)>=.12||Math.abs(driveTurn)>=.12)pushDrive(true);
+  },50);
+
+  const gyroToggle=$('#gyroEnable'),gyroBtn=$('#gyroPermission'),gyroNote=$('#gyroNote'),gyroCal=$('#gyroCalibrate'),httpsLink=$('#httpsLink');
+  let calBeta=45,calGamma=0,lastBeta=null,lastGamma=null,sensorSeen=0,sensorWatch=0;
+  function needsPermission(){return typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'}
+  function httpsUrl(){return 'https://'+location.hostname+(location.port&&location.port!=='80'&&location.port!=='443'?':'+location.port:'')+'/#'+(activePanel||'drive')}
+  if(!window.isSecureContext){
+    gyroToggle.disabled=true;
+    httpsLink.style.display='inline';
+    httpsLink.href=httpsUrl();
+    httpsLink.textContent='用 Chrome 打开 HTTPS';
+    gyroNote.innerHTML='陀螺仪必须用 <b>HTTPS</b>。请复制地址到 <b>Chrome / Edge / Safari</b> 打开（不要用微信/系统自带浏览器）：<br><code style="color:var(--accent);word-break:break-all">'+httpsUrl().replace(/#.*/,'')+'</code><br>若提示证书不安全：点「高级」→「继续访问」。圆盘在当前 HTTP 页仍可用。';
+  }else if(needsPermission()){
+    gyroBtn.style.display='';
+    gyroNote.textContent='iOS 需先点「授权运动传感器」，再打开陀螺仪。可点「校准水平」把当前姿态设为零点。';
+  }
+  function onOrientation(e){
+    if(e.beta==null||e.gamma==null)return;
+    lastBeta=e.beta;lastGamma=e.gamma;sensorSeen=Date.now();
+    if(!gyroOn||activePanel!=='drive'||stickActive)return;
+    const forward=clamp((e.beta-calBeta)/28,-1,1);
+    const turn=clamp((e.gamma-calGamma)/28,-1,1);
+    setDriveVector(forward,turn,false);
+  }
+  function startSensorWatch(){
+    clearInterval(sensorWatch);
+    sensorWatch=setInterval(()=>{
+      if(!gyroOn)return;
+      if(!sensorSeen){gyroNote.textContent='已开启，但还没收到传感器数据。若刚切到 HTTPS，请确认地址栏是 https:// 且已点「继续访问」。';return}
+      if(Date.now()-sensorSeen>2000)gyroNote.textContent='传感器数据中断。请保持遥控页在前台，或重新开关陀螺仪。';
+    },800);
+  }
+  async function enableGyro(on){
+    gyroOn=!!on;
+    if(!gyroOn){
+      window.removeEventListener('deviceorientation',onOrientation);
+      window.removeEventListener('deviceorientationabsolute',onOrientation);
+      clearInterval(sensorWatch);sensorSeen=0;
+      if(!stickActive)stopDrive(true);
+      gyroNote.textContent='陀螺仪已关闭；圆盘仍可控制。';
+      return;
+    }
+    if(!window.isSecureContext){
+      gyroToggle.checked=false;gyroOn=false;
+      toast('请先打开 HTTPS 页面',true);
+      httpsLink.click();
+      return;
+    }
+    try{
+      if(needsPermission()&&!gyroPerm){
+        const res=await DeviceOrientationEvent.requestPermission();
+        gyroPerm=res==='granted';
+        if(!gyroPerm){gyroToggle.checked=false;gyroOn=false;toast('未获得运动传感器权限',true);return}
+      }
+      sensorSeen=0;
+      window.addEventListener('deviceorientation',onOrientation);
+      window.addEventListener('deviceorientationabsolute',onOrientation);
+      startSensorWatch();
+      gyroNote.textContent='陀螺仪已开启：保持手机竖握，前倾前进、后仰后退、左右倾斜转向。可点「校准水平」。手指按住圆盘时优先圆盘。';
+    }catch(err){
+      gyroToggle.checked=false;gyroOn=false;
+      gyroNote.textContent='当前浏览器无法使用运动传感器。请确认已用 HTTPS 打开，或改用圆盘。';
+      toast('陀螺仪不可用',true);
+    }
+  }
+  gyroToggle.onchange=()=>enableGyro(gyroToggle.checked);
+  gyroBtn.onclick=async()=>{
+    try{
+      const res=await DeviceOrientationEvent.requestPermission();
+      gyroPerm=res==='granted';
+      if(gyroPerm){gyroToggle.checked=true;enableGyro(true);toast('传感器已授权')}
+      else toast('授权被拒绝',true);
+    }catch(err){toast('授权失败',true)}
+  };
+  gyroCal.onclick=()=>{
+    if(lastBeta==null||lastGamma==null){toast('请先开启陀螺仪并稍等传感器数据',true);return}
+    calBeta=lastBeta;calGamma=lastGamma;
+    toast('已校准：当前姿态为零点');
+    gyroNote.textContent=`已校准（β=${calBeta.toFixed(1)} γ=${calGamma.toFixed(1)}）。从此姿态开始倾斜控制。`;
+  };
+  httpsLink.onclick=e=>{
+    if(location.protocol==='https:'){e.preventDefault();return}
+    httpsLink.href=httpsUrl();
+  };
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopDrive(true)});
+  window.addEventListener('pagehide',()=>stopDrive(true));
+})();
 </script></body></html>
