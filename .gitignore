@@ -49,3 +49,11 @@ sdkconfig.old
 /.v240_research/
 
 /legacy_0.9.9_ref/
+
+# Local build / flash / monitor scratch logs (do not commit)
+/build_*.txt
+/flash_*.txt
+/flash_log.txt
+/monitor_log.txt
+/build_log.txt
+/legacy_petdog_*.txt
