@@ -6,6 +6,7 @@
 
 #include <set>
 #include <string>
+#include <atomic>
 
 class WebControlServer {
 public:
@@ -23,6 +24,7 @@ private:
     esp_timer_handle_t status_timer_ = nullptr;
     bool restart_pending_ = false;
     bool mdns_started_ = false;
+    std::atomic<bool> status_broadcast_pending_{false};
     std::set<int> clients_;
 
     WebControlServer();

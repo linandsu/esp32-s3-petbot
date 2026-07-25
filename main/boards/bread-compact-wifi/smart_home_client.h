@@ -4,6 +4,8 @@
 #include <cJSON.h>
 #include <mqtt.h>
 #include <esp_timer.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 #include <atomic>
 #include <memory>
@@ -53,14 +55,27 @@ private:
         int64_t ts = 0;
     };
 
+    struct Snapshot {
+        bool connected = false;
+        std::string broker;
+        DeviceCache outlet_01;
+        DeviceCache outlet_02;
+        DeviceCache gas_alarm_01;
+        DeviceCache temp_humi_01;
+        EventCache last_event;
+        EventCache last_feedback;
+    };
+
     static SmartHomeClient* instance_;
     std::shared_ptr<std::atomic<bool>> alive_ = std::make_shared<std::atomic<bool>>(true);
 
     mutable std::mutex mutex_;
+    mutable std::mutex mqtt_mutex_;
     std::unique_ptr<Mqtt> mqtt_;
     esp_timer_handle_t reconnect_timer_ = nullptr;
-    bool want_running_ = false;
-    bool connecting_ = false;
+    std::atomic<bool> want_running_{false};
+    std::atomic<bool> connecting_{false};
+    std::atomic<bool> connect_task_running_{false};
 
     std::string broker_host_ = "192.168.3.88";
     int broker_port_ = 1884;
@@ -76,6 +91,7 @@ private:
     std::string last_announce_key_;
 
     void LoadSettings();
+    void RequestConnect();
     void Connect();
     void ScheduleReconnect();
     void SubscribeAll();
@@ -92,7 +108,9 @@ private:
     bool ShouldAnnounce(const std::string& key);
     void Announce(const char* status, const std::string& message, const char* emotion,
                   const std::string_view& sound);
+    Snapshot TakeSnapshot() const;
     static void OnReconnectTimer(void* arg);
+    static void ConnectTask(void* arg);
 };
 
 #endif  // SMART_HOME_CLIENT_H

@@ -74,7 +74,7 @@ bool WebControlServer::Start() {
         return false;
     }
 
-    ESP_ERROR_CHECK(esp_timer_start_periodic(status_timer_, 2000000));
+    ESP_ERROR_CHECK(esp_timer_start_periodic(status_timer_, 5000000));
     ESP_LOGI(TAG, "Local control server ready (http=%d https=%d)", (int)http_ok, (int)https_ok);
     return true;
 }
@@ -205,7 +205,15 @@ esp_err_t WebControlServer::WsHandler(httpd_req_t* req) {
 }
 
 void WebControlServer::StatusTimerCallback(void* arg) {
-    static_cast<WebControlServer*>(arg)->BroadcastStatus();
+    auto* server = static_cast<WebControlServer*>(arg);
+    bool expected = false;
+    if (!server->status_broadcast_pending_.compare_exchange_strong(expected, true)) {
+        return;  // previous broadcast still queued
+    }
+    Application::GetInstance().Schedule([server]() {
+        server->BroadcastStatus();
+        server->status_broadcast_pending_ = false;
+    });
 }
 
 void WebControlServer::RestartTask(void* arg) {

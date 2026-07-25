@@ -120,18 +120,22 @@ void SmartHomeClient::LoadSettings() {
 
 void SmartHomeClient::Start() {
     want_running_ = true;
-    Connect();
+    RequestConnect();
 }
 
 void SmartHomeClient::Stop() {
     want_running_ = false;
     if (reconnect_timer_ != nullptr) esp_timer_stop(reconnect_timer_);
     connecting_ = false;
-    mqtt_.reset();
+    {
+        std::lock_guard<std::mutex> lock(mqtt_mutex_);
+        mqtt_.reset();
+    }
     ESP_LOGI(TAG, "Smart home MQTT stopped");
 }
 
 bool SmartHomeClient::IsConnected() const {
+    std::lock_guard<std::mutex> lock(mqtt_mutex_);
     return mqtt_ && mqtt_->IsConnected();
 }
 
@@ -143,19 +147,43 @@ void SmartHomeClient::ScheduleReconnect() {
 
 void SmartHomeClient::OnReconnectTimer(void* arg) {
     auto* self = static_cast<SmartHomeClient*>(arg);
-    auto alive = self->alive_;
-    Application::GetInstance().Schedule([self, alive]() {
-        if (!*alive || !self->want_running_) return;
-        ESP_LOGI(TAG, "Reconnecting smart home MQTT");
+    if (!self->want_running_ || !*self->alive_) return;
+    ESP_LOGI(TAG, "Reconnecting smart home MQTT");
+    self->RequestConnect();
+}
+
+void SmartHomeClient::RequestConnect() {
+    if (!want_running_ || !*alive_) return;
+    bool expected = false;
+    if (!connect_task_running_.compare_exchange_strong(expected, true)) {
+        return;  // already connecting on worker task
+    }
+    // Never block Application main loop: esp_mqtt Connect() can wait up to 10s.
+    BaseType_t ok = xTaskCreate(&SmartHomeClient::ConnectTask, "sh_mqtt_conn", 6144, this, 5, nullptr);
+    if (ok != pdPASS) {
+        connect_task_running_ = false;
+        ESP_LOGE(TAG, "Failed to create connect task");
+        ScheduleReconnect();
+    }
+}
+
+void SmartHomeClient::ConnectTask(void* arg) {
+    auto* self = static_cast<SmartHomeClient*>(arg);
+    if (self->want_running_ && *self->alive_) {
         self->Connect();
-    });
+    }
+    self->connect_task_running_ = false;
+    vTaskDelete(nullptr);
 }
 
 void SmartHomeClient::Connect() {
     if (!want_running_ || connecting_) return;
     connecting_ = true;
 
-    mqtt_.reset();
+    {
+        std::lock_guard<std::mutex> lock(mqtt_mutex_);
+        mqtt_.reset();
+    }
 
     auto network = Board::GetInstance().GetNetwork();
     if (network == nullptr) {
@@ -165,16 +193,16 @@ void SmartHomeClient::Connect() {
         return;
     }
 
-    mqtt_ = network->CreateMqtt(1);
-    mqtt_->SetKeepAlive(60);
+    auto mqtt = network->CreateMqtt(1);
+    mqtt->SetKeepAlive(60);
 
-    mqtt_->OnDisconnected([this]() {
+    mqtt->OnDisconnected([this]() {
         ESP_LOGW(TAG, "Disconnected from %s:%d", broker_host_.c_str(), broker_port_);
         connecting_ = false;
-        ScheduleReconnect();
+        if (want_running_) ScheduleReconnect();
     });
 
-    mqtt_->OnConnected([this]() {
+    mqtt->OnConnected([this]() {
         ESP_LOGI(TAG, "Connected to %s:%d as %s", broker_host_.c_str(), broker_port_,
                  client_id_.c_str());
         connecting_ = false;
@@ -182,20 +210,35 @@ void SmartHomeClient::Connect() {
         SubscribeAll();
     });
 
-    mqtt_->OnMessage([this](const std::string& topic, const std::string& payload) {
+    mqtt->OnMessage([this](const std::string& topic, const std::string& payload) {
         OnMessage(topic, payload);
     });
 
+    Mqtt* client = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(mqtt_mutex_);
+        mqtt_ = std::move(mqtt);
+        client = mqtt_.get();
+    }
+
     ESP_LOGI(TAG, "Connecting to smart home broker %s:%d", broker_host_.c_str(), broker_port_);
-    if (!mqtt_->Connect(broker_host_, broker_port_, client_id_, "", "")) {
-        ESP_LOGE(TAG, "Connect failed, code=%d", mqtt_->GetLastError());
+    // Blocking wait (up to ~10s) must stay off the Application main loop.
+    const bool ok = client && client->Connect(broker_host_, broker_port_, client_id_, "", "");
+    if (!want_running_ || !ok) {
+        if (!ok && client) {
+            ESP_LOGE(TAG, "Connect failed, code=%d", client->GetLastError());
+        }
         connecting_ = false;
-        mqtt_.reset();
-        ScheduleReconnect();
+        {
+            std::lock_guard<std::mutex> lock(mqtt_mutex_);
+            mqtt_.reset();
+        }
+        if (want_running_) ScheduleReconnect();
     }
 }
 
 void SmartHomeClient::SubscribeAll() {
+    std::lock_guard<std::mutex> lock(mqtt_mutex_);
     if (!mqtt_ || !mqtt_->IsConnected()) return;
     const std::string status = Topic("device/+/status");
     const std::string ack = Topic("device/+/ack");
@@ -381,13 +424,18 @@ void SmartHomeClient::HandleFeedback(cJSON* root) {
 }
 
 bool SmartHomeClient::PublishJson(const std::string& topic, cJSON* root) {
-    if (!mqtt_ || !mqtt_->IsConnected()) {
-        ESP_LOGW(TAG, "Publish skipped, not connected: %s", topic.c_str());
-        return false;
-    }
     char* text = cJSON_PrintUnformatted(root);
     if (text == nullptr) return false;
-    const bool ok = mqtt_->Publish(topic, text, 0);
+    bool ok = false;
+    {
+        std::lock_guard<std::mutex> lock(mqtt_mutex_);
+        if (mqtt_ && mqtt_->IsConnected()) {
+            ok = mqtt_->Publish(topic, text, 0);
+        }
+    }
+    if (!ok) {
+        ESP_LOGW(TAG, "Publish skipped, not connected: %s", topic.c_str());
+    }
     cJSON_free(text);
     return ok;
 }
@@ -422,11 +470,25 @@ bool SmartHomeClient::SendSos(const std::string& message) {
     return ok;
 }
 
-std::string SmartHomeClient::GetStatusJson() const {
+SmartHomeClient::Snapshot SmartHomeClient::TakeSnapshot() const {
+    Snapshot snap;
+    snap.connected = IsConnected();
+    snap.broker = broker_host_ + ":" + std::to_string(broker_port_);
     std::lock_guard<std::mutex> lock(mutex_);
+    snap.outlet_01 = outlet_01_;
+    snap.outlet_02 = outlet_02_;
+    snap.gas_alarm_01 = gas_alarm_01_;
+    snap.temp_humi_01 = temp_humi_01_;
+    snap.last_event = last_event_;
+    snap.last_feedback = last_feedback_;
+    return snap;
+}
+
+std::string SmartHomeClient::GetStatusJson() const {
+    const Snapshot snap = TakeSnapshot();
     cJSON* root = cJSON_CreateObject();
-    cJSON_AddBoolToObject(root, "connected", IsConnected());
-    cJSON_AddStringToObject(root, "broker", (broker_host_ + ":" + std::to_string(broker_port_)).c_str());
+    cJSON_AddBoolToObject(root, "connected", snap.connected);
+    cJSON_AddStringToObject(root, "broker", snap.broker.c_str());
 
     auto add_device = [&](const char* id, const DeviceCache& d) {
         cJSON* obj = cJSON_AddObjectToObject(root, id);
@@ -441,21 +503,21 @@ std::string SmartHomeClient::GetStatusJson() const {
         cJSON_AddStringToObject(obj, "humidity", d.humidity.c_str());
         cJSON_AddNumberToObject(obj, "ts", static_cast<double>(d.ts));
     };
-    add_device("outlet_01", outlet_01_);
-    add_device("outlet_02", outlet_02_);
-    add_device("gas_alarm_01", gas_alarm_01_);
-    add_device("temp_humi_01", temp_humi_01_);
+    add_device("outlet_01", snap.outlet_01);
+    add_device("outlet_02", snap.outlet_02);
+    add_device("gas_alarm_01", snap.gas_alarm_01);
+    add_device("temp_humi_01", snap.temp_humi_01);
 
     cJSON* event = cJSON_AddObjectToObject(root, "last_event");
-    cJSON_AddStringToObject(event, "type", last_event_.type.c_str());
-    cJSON_AddStringToObject(event, "message", last_event_.message.c_str());
-    cJSON_AddStringToObject(event, "level", last_event_.level.c_str());
-    cJSON_AddNumberToObject(event, "ts", static_cast<double>(last_event_.ts));
+    cJSON_AddStringToObject(event, "type", snap.last_event.type.c_str());
+    cJSON_AddStringToObject(event, "message", snap.last_event.message.c_str());
+    cJSON_AddStringToObject(event, "level", snap.last_event.level.c_str());
+    cJSON_AddNumberToObject(event, "ts", static_cast<double>(snap.last_event.ts));
 
     cJSON* feedback = cJSON_AddObjectToObject(root, "last_feedback");
-    cJSON_AddStringToObject(feedback, "type", last_feedback_.type.c_str());
-    cJSON_AddStringToObject(feedback, "message", last_feedback_.message.c_str());
-    cJSON_AddNumberToObject(feedback, "ts", static_cast<double>(last_feedback_.ts));
+    cJSON_AddStringToObject(feedback, "type", snap.last_feedback.type.c_str());
+    cJSON_AddStringToObject(feedback, "message", snap.last_feedback.message.c_str());
+    cJSON_AddNumberToObject(feedback, "ts", static_cast<double>(snap.last_feedback.ts));
 
     char* text = cJSON_PrintUnformatted(root);
     std::string result = text == nullptr ? "{}" : text;
@@ -465,37 +527,39 @@ std::string SmartHomeClient::GetStatusJson() const {
 }
 
 std::string SmartHomeClient::GetStatusSummaryZh() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    const Snapshot snap = TakeSnapshot();
     std::string out;
-    out += IsConnected() ? "智能家居已连接。" : "智能家居未连接。";
+    out += snap.connected ? "智能家居已连接。" : "智能家居未连接。";
     out += "风扇（outlet_01）：";
-    out += outlet_01_.seen ? (OnOffZh(outlet_01_.socket_1.empty() ? outlet_01_.state : outlet_01_.socket_1) +
-                              (outlet_01_.online ? "" : "（离线）"))
-                           : "暂无数据";
+    out += snap.outlet_01.seen
+               ? (OnOffZh(snap.outlet_01.socket_1.empty() ? snap.outlet_01.state : snap.outlet_01.socket_1) +
+                  (snap.outlet_01.online ? "" : "（离线）"))
+               : "暂无数据";
     out += "。房间灯（outlet_02）：";
-    out += outlet_02_.seen ? (OnOffZh(outlet_02_.socket_1.empty() ? outlet_02_.state : outlet_02_.socket_1) +
-                              (outlet_02_.online ? "" : "（离线）"))
-                           : "暂无数据";
+    out += snap.outlet_02.seen
+               ? (OnOffZh(snap.outlet_02.socket_1.empty() ? snap.outlet_02.state : snap.outlet_02.socket_1) +
+                  (snap.outlet_02.online ? "" : "（离线）"))
+               : "暂无数据";
     out += "。燃气：";
-    if (!gas_alarm_01_.seen) {
+    if (!snap.gas_alarm_01.seen) {
         out += "暂无数据";
     } else {
-        out += gas_alarm_01_.gas.empty() ? "未知" : gas_alarm_01_.gas;
-        if (!gas_alarm_01_.gas_value.empty()) {
+        out += snap.gas_alarm_01.gas.empty() ? "未知" : snap.gas_alarm_01.gas;
+        if (!snap.gas_alarm_01.gas_value.empty()) {
             out += "，浓度 ";
-            out += gas_alarm_01_.gas_value;
+            out += snap.gas_alarm_01.gas_value;
         }
-        if (!gas_alarm_01_.online) out += "（离线）";
+        if (!snap.gas_alarm_01.online) out += "（离线）";
     }
     out += "。温湿度：";
-    if (!temp_humi_01_.seen) {
+    if (!snap.temp_humi_01.seen) {
         out += "暂无数据";
     } else {
-        out += temp_humi_01_.temperature.empty() ? "?" : temp_humi_01_.temperature;
+        out += snap.temp_humi_01.temperature.empty() ? "?" : snap.temp_humi_01.temperature;
         out += "℃ / ";
-        out += temp_humi_01_.humidity.empty() ? "?" : temp_humi_01_.humidity;
+        out += snap.temp_humi_01.humidity.empty() ? "?" : snap.temp_humi_01.humidity;
         out += "%";
-        if (!temp_humi_01_.online) out += "（离线）";
+        if (!snap.temp_humi_01.online) out += "（离线）";
     }
     out += "。";
     return out;
