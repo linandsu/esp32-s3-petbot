@@ -45,10 +45,6 @@ sdkconfig.old
 # Generated at build time from assets/locales/*
 /main/assets/lang_config.h
 
-# Temporary upstream reference clone (used during v2.4.0 migration)
-/.v240_research/
-
-/legacy_0.9.9_ref/
 
 # Local build / flash / monitor scratch logs (do not commit)
 /build_*.txt
