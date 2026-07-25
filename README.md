@@ -2,7 +2,9 @@
 
 基于虾哥 [xiaozhi-esp32](https://github.com/78/xiaozhi-esp32) **v2.4.0** 衍生的 ESP32-S3 机器狗固件：保留官方语音对话与 MCP 能力，并增加舵机动作、OLED 表情、RGB 灯光、局域网网页遥控等。
 
+👉 [桌面女友 / 你好小智衍生演示（Bilibili）](https://www.bilibili.com/video/BV15vPie8EK7/?share_source=copy_web&vd_source=88b9ddd63f42d3b81438a3222ecae176)
 
+学习交流 QQ 群：`948525028`
 
 ## 硬件与板型
 
