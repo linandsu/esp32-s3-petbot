@@ -49,3 +49,10 @@ sdkconfig.old
 /.v240_research/
 
 /legacy_0.9.9_ref/
+
+# Local flash / serial logs
+/flash_log.txt
+/monitor_log.txt
+/flash_*.txt
+/build_*.txt
+/build_log.txt
